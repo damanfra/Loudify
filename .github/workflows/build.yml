@@ -1,0 +1,49 @@
+name: Build
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Build limiter plugin
+        run: |
+          cmake -S native/LoudifyLimiter -B native/LoudifyLimiter/build -A x64
+          cmake --build native/LoudifyLimiter/build --config Release
+
+      - name: Test limiter plugin
+        run: ctest --test-dir native/LoudifyLimiter/build -C Release --output-on-failure
+
+      - name: Test core library
+        run: dotnet test tests/Loudify.Core.Tests -c Release
+
+      - name: Publish Loudify.exe
+        run: >
+          dotnet publish src/Loudify/Loudify.csproj -c Release -r win-x64 --self-contained true
+          -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:EnableCompressionInSingleFile=true -o publish
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Loudify-win-x64
+          path: publish/Loudify.exe
+
+      - name: Create release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: publish/Loudify.exe

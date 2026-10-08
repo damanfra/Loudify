@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <AssemblyName>Loudify</AssemblyName>
+    <RootNamespace>Loudify</RootNamespace>
+    <Version>0.1.0</Version>
+    <!-- Built by native/LoudifyLimiter (CMake). Embedded so the app ships as a single exe. -->
+    <LimiterDllPath Condition="'$(LimiterDllPath)' == ''">$(MSBuildThisFileDirectory)..\..\native\LoudifyLimiter\build\Release\LoudifyLimiter.dll</LimiterDllPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="$(LimiterDllPath)" LogicalName="LoudifyLimiter.dll" Condition="Exists('$(LimiterDllPath)')" />
+  </ItemGroup>
+
+  <!-- A release build without the limiter would install nothing useful. -->
+  <Target Name="RequireLimiter" BeforeTargets="BeforeBuild" Condition="'$(Configuration)' == 'Release' And !Exists('$(LimiterDllPath)')">
+    <Error Text="LoudifyLimiter.dll not found at $(LimiterDllPath). Build native/LoudifyLimiter with CMake first (see README)." />
+  </Target>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Loudify.Core\Loudify.Core.csproj" />
+  </ItemGroup>
+
+</Project>
