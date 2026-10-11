@@ -79,6 +79,14 @@ internal sealed class SettingsForm : Form
         layout.Controls.Add(updateRow);
         layout.Controls.Add(_status);
         layout.Controls.Add(_retry);
+        layout.Controls.Add(new Label
+        {
+            Text = "by Daniel Manfrini · Powered by Claude Code",
+            AutoSize = true,
+            Margin = new Padding(0, 10, 0, 0),
+            Font = new Font(Font.FontFamily, Font.Size - 1),
+            ForeColor = SystemColors.GrayText,
+        });
         Controls.Add(layout);
 
         _enabled.CheckedChanged += (_, _) =>
