@@ -106,7 +106,7 @@ static void testNoOversWithBoost()
     const double rates[] = { 44100.0, 48000.0, 96000.0, 192000.0 };
     for (double sr : rates)
     {
-        for (double gainDb : { 6.0, 12.0, 24.0 })
+        for (double gainDb : { 6.0, 12.0, 24.0, 36.0 })
         {
             Limiter lim;
             lim.setSampleRate(sr);
@@ -247,7 +247,7 @@ static void testVstEntryPoint()
     e->dispatcher(e, 11, 0, 480, nullptr, 0.0f);
     e->setParameter(e, 0, static_cast<float>(gainDbToNormalized(12.0)));
     e->setParameter(e, 1, static_cast<float>(ceilingDbToNormalized(-1.0)));
-    CHECK(std::fabs(e->getParameter(e, 0) - 0.5f) < 1e-6);
+    CHECK(std::fabs(e->getParameter(e, 0) - static_cast<float>(gainDbToNormalized(12.0))) < 1e-6);
     e->dispatcher(e, 12, 0, 1, nullptr, 0.0f);
 
     char display[256] = {};

@@ -22,7 +22,7 @@ Jogos / Discord / navegador
 ## Instalação
 
 1. **Instale o Equalizer APO** (versão 64 bits, 1.3 ou mais recente).
-   - No *Configurator* que abre no fim da instalação, marque o **G423** na aba *Playback devices*. Não marque o microfone.
+   - No *Configurator* que abre no fim da instalação, marque só a linha **Alto-falantes — Logitech G432 Gaming Headset** em *Playback devices*. Não marque o microfone (*Capture devices*).
    - Se depois o volume não mudar, abra o Configurator de novo (Menu Iniciar → Equalizer APO → Configurator), marque *Troubleshooting options* no headset e teste as opções de instalação alternativas.
    - Reinicie o Windows.
 2. **Baixe o `Loudify.exe`** em *Releases* (última versão), ou em *Actions* → último build verde → artefato `Loudify-win-x64`.
@@ -35,7 +35,7 @@ Na primeira vez, o Loudify adiciona `Include: loudify.txt` ao `config.txt` do Eq
 | Ação | Como |
 |---|---|
 | Ligar / desligar | **Ctrl+Alt+L** (funciona dentro do jogo), ou clique direito no ícone → *Ligado* |
-| Ajustar o ganho | Clique no ícone → controle deslizante (0 a +18 dB, aplicado na hora) |
+| Ajustar o ganho | Clique no ícone → controle deslizante (0 a +30 dB, aplicado na hora) |
 | Trocar o atalho | Janela de configurações → clique no campo *Atalho* e pressione a nova combinação |
 | Iniciar com o Windows | Janela de configurações |
 
@@ -44,7 +44,7 @@ Na primeira vez, o Loudify adiciona `Include: loudify.txt` ao `config.txt` do Eq
 - **Fechar o Loudify desliga o aumento.** Ao abrir de novo, o último estado é restaurado.
 - As configurações ficam em `%AppData%\Loudify\settings.json`.
 
-> **Cuidado com a audição:** +18 dB é um aumento grande (cerca de 8 vezes a amplitude). Comece com pouco ganho e aumente aos poucos.
+> **Cuidado com a audição:** +30 dB é um aumento enorme (cerca de 32 vezes a amplitude). Comece com pouco ganho e aumente aos poucos. Acima de uns +20 dB o limitador passa a comprimir bastante: o som fica mais "cheio" e alto, mas perde dinâmica.
 
 ## Desinstalar
 

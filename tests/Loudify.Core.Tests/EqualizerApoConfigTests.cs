@@ -18,7 +18,7 @@ public class EqualizerApoConfigTests
 
         Assert.Contains("Stage: post-mix\r\n", config);
         Assert.Contains(
-            "VSTPlugin: Library \"" + LimiterPath + "\" Gain 0.5 Ceiling 0.833333 Release 0.141414\r\n",
+            "VSTPlugin: Library \"" + LimiterPath + "\" Gain 0.333333 Ceiling 0.833333 Release 0.141414\r\n",
             config);
     }
 
@@ -36,7 +36,7 @@ public class EqualizerApoConfigTests
     {
         string config = EqualizerApoConfig.BuildLoudifyConfig(new LoudifySettings { GainDb = 40 }, LimiterPath);
 
-        Assert.Contains(" Gain 0.75 ", config); // 18 dB of the plugin's 24 dB range
+        Assert.Contains(" Gain 0.833333 ", config); // 30 dB of the plugin's 36 dB range
     }
 
     [Fact]
@@ -47,7 +47,7 @@ public class EqualizerApoConfigTests
         {
             Thread.CurrentThread.CurrentCulture = new System.Globalization.CultureInfo("pt-BR");
             string config = EqualizerApoConfig.BuildLoudifyConfig(new LoudifySettings { GainDb = 6 }, LimiterPath);
-            Assert.Contains(" Gain 0.25 ", config);
+            Assert.Contains(" Gain 0.166667 ", config);
         }
         finally
         {

@@ -15,7 +15,7 @@ enum ParameterIndex
     kNumParams
 };
 
-constexpr double kMaxGainDb = 24.0;
+constexpr double kMaxGainDb = 36.0;
 constexpr double kMinCeilingDb = -6.0;
 constexpr double kMinReleaseMs = 10.0;
 constexpr double kMaxReleaseMs = 1000.0;

@@ -8,7 +8,7 @@ namespace Loudify.Core;
 /// </summary>
 public static class LimiterParameters
 {
-    public const double MaxGainDb = 24.0;
+    public const double MaxGainDb = 36.0;
     public const double MinCeilingDb = -6.0;
     public const double MinReleaseMs = 10.0;
     public const double MaxReleaseMs = 1000.0;
