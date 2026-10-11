@@ -17,9 +17,15 @@ public sealed class VoiceDucker
     /// <summary>The noise floor drops quickly to quieter levels, so pauses between
     /// words keep it at the real ambient level...</summary>
     public const double FloorFallMs = 300;
-    /// <summary>...and rises slowly, so speech barely moves it while a new steady
-    /// noise (a fan turned on) is learned within several seconds.</summary>
+    /// <summary>...and rises slowly, so a new steady noise (a fan turned on) is
+    /// learned within several seconds.</summary>
     public const double FloorRiseDbPerSecond = 1.5;
+    /// <summary>While the user talks the floor almost freezes, so a long
+    /// conversation cannot drag the threshold up past the quieter syllables...</summary>
+    public const double FloorRiseWhileSpeakingDbPerSecond = 0.1;
+    /// <summary>...unless the level never dips below the threshold for this long:
+    /// speech always has gaps between words, a fan does not.</summary>
+    public const double SteadyNoiseMs = 3000;
     public const double MinFloorDb = -100;
 
     private double _aboveMs;
@@ -73,7 +79,11 @@ public sealed class VoiceDucker
         else if (levelDb < floor)
             NoiseFloorDb = floor + (levelDb - floor) * (1 - Math.Exp(-blockMs / FloorFallMs));
         else
-            NoiseFloorDb = Math.Min(levelDb, floor + FloorRiseDbPerSecond * blockMs / 1000);
+        {
+            bool talking = Speaking && _aboveMs < SteadyNoiseMs;
+            double rate = talking ? FloorRiseWhileSpeakingDbPerSecond : FloorRiseDbPerSecond;
+            NoiseFloorDb = Math.Min(levelDb, floor + rate * blockMs / 1000);
+        }
     }
 
     public void Reset()

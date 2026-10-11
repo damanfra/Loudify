@@ -37,15 +37,17 @@ public:
     void setGainDb(double db)
     {
         gainDb_ = db;
-        targetGain_ = dbToLinear(gainDb_ - duckDb_);
+        targetGain_ = dbToLinear(gainDb_);
     }
 
-    // Temporary attenuation on top of the gain (lowering the game while the user
-    // talks). Ramps with the same smoothing as gain changes, so it never clicks.
+    // Temporary attenuation (lowering the game while the user talks). Applied
+    // after the limiter: before it, the limiter would simply reduce less and
+    // swallow part of the attenuation on loud content. Ramps with the same
+    // smoothing as gain changes, so it never clicks.
     void setDuckDb(double db)
     {
         duckDb_ = std::max(db, 0.0);
-        targetGain_ = dbToLinear(gainDb_ - duckDb_);
+        targetDuck_ = dbToLinear(-duckDb_);
     }
     double duckDb() const { return duckDb_; }
     void setCeilingDb(double db) { ceiling_ = dbToLinear(std::min(db, 0.0)); }
@@ -66,6 +68,7 @@ public:
         boxSum_ = window_;
         release_ = 1.0;
         currentGain_ = 1.0;
+        currentDuck_ = targetDuck_;
         pos_ = 0;
     }
 
@@ -79,6 +82,7 @@ public:
         for (int i = 0; i < frames; i++)
         {
             currentGain_ += (targetGain_ - currentGain_) * gainCoef_;
+            currentDuck_ += (targetDuck_ - currentDuck_) * gainCoef_;
 
             double peak = 0.0;
             for (int c = 0; c < channels; c++)
@@ -119,7 +123,7 @@ public:
             for (int c = 0; c < channels; c++)
             {
                 double y = delay_[c][readPos] * gain;
-                out[c][i] = static_cast<float>(std::clamp(y, -ceiling_, ceiling_));
+                out[c][i] = static_cast<float>(std::clamp(y, -ceiling_, ceiling_) * currentDuck_);
             }
             pos_ = readPos;
         }
@@ -139,6 +143,8 @@ private:
     double duckDb_ = 0.0;
     double targetGain_ = 1.0;
     double currentGain_ = 1.0;
+    double targetDuck_ = 1.0;
+    double currentDuck_ = 1.0;
     double gainCoef_ = 1.0;
     double ceiling_ = dbToLinear(-1.0);
     double releaseMs_ = 150.0;

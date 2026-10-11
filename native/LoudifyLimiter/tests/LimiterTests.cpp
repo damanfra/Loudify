@@ -226,6 +226,20 @@ static void testDuckLowersTheGain()
     CHECK(lim.duckDb() == 0.0);
 }
 
+static void testDuckIsExactOnLimitedAudio()
+{
+    std::printf("ducking lowers heavily limited audio by the full amount\n");
+    Limiter lim;
+    lim.setGainDb(19.0);
+    lim.setCeilingDb(-1.0);
+    Stereo in = sine(48000.0, 440.0, 0.5, 48000); // +19 dB on this is ~15 dB over the ceiling
+    Stereo loud = run(lim, in);
+    lim.setDuckDb(20.0);
+    Stereo ducked = run(lim, in);
+    double drop = 20.0 * std::log10(rms(ducked, 24000, 48000) / rms(loud, 24000, 48000));
+    CHECK(std::fabs(drop + 20.0) < 0.2);
+}
+
 static void testControlBlock()
 {
     std::printf("control block is ignored when stale or invalid\n");
@@ -329,6 +343,7 @@ int main()
     testNonFiniteInput();
     testInPlace();
     testDuckLowersTheGain();
+    testDuckIsExactOnLimitedAudio();
     testControlBlock();
     testParameterMapping();
     testVstEntryPoint();

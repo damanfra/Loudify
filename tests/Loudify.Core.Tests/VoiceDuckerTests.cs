@@ -117,6 +117,22 @@ public class VoiceDuckerTests
         Assert.True(d.Speaking);
     }
 
+    [Fact]
+    public void LongTalkWithShortPausesKeepsTheThreshold()
+    {
+        var d = Create();
+        // 30 s of talking; the short pauses never drop back to the fan level
+        // (breath, room echo), so they stay below the threshold but above the floor.
+        for (int i = 0; i < 60; i++)
+        {
+            Feed(d, -30, 400);
+            Feed(d, -52, 100);
+        }
+        Assert.InRange(d.NoiseFloorDb!.Value, -61, -56);
+        Assert.Equal(8, d.CurrentDuckDb);
+        Assert.Equal(8, Feed(d, -42, 100)); // a quieter syllable still counts
+    }
+
     [Theory]
     [InlineData(1000, -1, 1)]
     [InlineData(100, -100, -15)]
