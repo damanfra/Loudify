@@ -307,9 +307,9 @@ internal sealed class TrayApplicationContext : ApplicationContext
             _ducking = null;
         }
         if (active && _ducking == null)
-            _ducking = new MicDucking(_settings.MicrophoneId, _settings.VoiceMarginDb, _settings.DuckAmountDb);
+            _ducking = new MicDucking(_settings.MicrophoneId, _settings.VoiceMarginDb, _settings.DuckAmountDb, _settings.CalibratedNoiseDb);
         else if (active)
-            _ducking!.Configure(_settings.VoiceMarginDb, _settings.DuckAmountDb);
+            _ducking!.Configure(_settings.VoiceMarginDb, _settings.DuckAmountDb, _settings.CalibratedNoiseDb);
         else if (_ducking != null)
         {
             _ducking.Dispose();

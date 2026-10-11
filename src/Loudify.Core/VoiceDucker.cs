@@ -32,6 +32,10 @@ public sealed class VoiceDucker
     private double _sinceSpeechMs;
 
     public double MarginDb { get; set; } = LoudifySettings.DefaultVoiceMarginDb;
+
+    /// <summary>A noise level measured by calibration. When set, the floor stays at
+    /// this value instead of being learned.</summary>
+    public double? FixedNoiseFloorDb { get; set; }
     public double DuckDb { get; set; } = LoudifySettings.DefaultDuckAmountDb;
 
     public bool Speaking { get; private set; }
@@ -73,6 +77,11 @@ public sealed class VoiceDucker
 
     private void TrackNoiseFloor(double levelDb, double blockMs)
     {
+        if (FixedNoiseFloorDb is { } fixedFloor)
+        {
+            NoiseFloorDb = fixedFloor;
+            return;
+        }
         levelDb = Math.Max(levelDb, MinFloorDb);
         if (NoiseFloorDb is not { } floor)
             NoiseFloorDb = levelDb;

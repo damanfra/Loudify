@@ -43,6 +43,8 @@ internal sealed class SettingsForm : Form
     private readonly ComboBox _mic = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 300 };
     private readonly Label _micLabel = new() { AutoSize = true, MaximumSize = new Size(320, 0) };
     private readonly ProgressBar _micMeter = new() { Minimum = 0, Maximum = 100, Width = 300, Height = 10 };
+    private readonly Button _calibrate = new() { Text = "Calibrar ruído do ambiente", AutoSize = true };
+    private readonly Button _autoNoise = new() { Text = "Automático", AutoSize = true };
     private readonly Label _thresholdLabel = new() { AutoSize = true };
     private readonly TrackBar _threshold = new()
     {
@@ -106,11 +108,22 @@ internal sealed class SettingsForm : Form
         _duckPanel.Controls.Add(_duckAmount);
         _duckPanel.Controls.Add(_micLabel);
         _duckPanel.Controls.Add(_micMeter);
+        var calibrateRow = new FlowLayoutPanel { AutoSize = true, Margin = new Padding(0, 4, 0, 0) };
+        calibrateRow.Controls.Add(_calibrate);
+        calibrateRow.Controls.Add(_autoNoise);
+        _duckPanel.Controls.Add(calibrateRow);
+        _duckPanel.Controls.Add(new Label
+        {
+            Text = "Clique em Calibrar e fique 5 segundos em silêncio, com os ventiladores como de costume. O valor medido fica salvo e fixo.",
+            AutoSize = true,
+            MaximumSize = new Size(320, 0),
+            ForeColor = SystemColors.GrayText,
+        });
         _duckPanel.Controls.Add(_thresholdLabel);
         _duckPanel.Controls.Add(_threshold);
         _duckPanel.Controls.Add(new Label
         {
-            Text = "O ruído do ambiente (ventiladores, PC) é aprendido sozinho. Aumente a margem se o jogo baixar sem você falar; diminua se não baixar quando fala baixo.",
+            Text = "Aumente a margem se o jogo baixar sem você falar; diminua se não baixar quando você fala baixo.",
             AutoSize = true,
             MaximumSize = new Size(320, 0),
             ForeColor = SystemColors.GrayText,
@@ -158,11 +171,14 @@ internal sealed class SettingsForm : Form
             if (!_updating)
                 _app.UpdateSettings(_app.Settings with { DuckWhileTalking = _duck.Checked }, immediate: true);
         };
+        _calibrate.Click += (_, _) => _app.Ducking?.StartCalibration();
+        _autoNoise.Click += (_, _) => _app.UpdateSettings(_app.Settings with { CalibratedNoiseDb = null }, immediate: true);
         _mic.DropDown += (_, _) => FillMicrophones();
         _mic.SelectedIndexChanged += (_, _) =>
         {
             if (!_updating && _mic.SelectedItem is MicItem item)
-                _app.UpdateSettings(_app.Settings with { MicrophoneId = item.Id }, immediate: true);
+                // A calibration belongs to one microphone: drop it when switching.
+                _app.UpdateSettings(_app.Settings with { MicrophoneId = item.Id, CalibratedNoiseDb = null }, immediate: true);
         };
         _duckAmount.ValueChanged += (_, _) =>
         {
@@ -294,9 +310,27 @@ internal sealed class SettingsForm : Form
         double level = ducking.LevelDb;
         const double range = 80; // meter shows -80..0 dB
         _micMeter.Value = (int)Math.Clamp((level + range) / range * 100, 0, 100);
-        string room = ducking.NoiseFloorDb is { } floor
-            ? $"\nRuído do ambiente: {Math.Max(floor, -99):0} dB · voz a partir de {Math.Max(ducking.ThresholdDb, -99):0} dB"
-            : "";
+
+        if (ducking.TakeCalibrationResult() is { } measured)
+            _app.UpdateSettings(_app.Settings with { CalibratedNoiseDb = Math.Round(measured, 1) }, immediate: true);
+        bool calibrated = _app.Settings.CalibratedNoiseDb != null;
+        if (ducking.CalibrationProgress is { } progress)
+        {
+            _calibrate.Enabled = false;
+            _calibrate.Text = $"Silêncio... {Math.Ceiling((1 - progress) * NoiseCalibration.DurationMs / 1000):0} s";
+        }
+        else
+        {
+            _calibrate.Enabled = true;
+            _calibrate.Text = calibrated ? "Calibrar de novo" : "Calibrar ruído do ambiente";
+        }
+        _autoNoise.Visible = calibrated;
+
+        string room = ducking.CalibrationProgress != null
+            ? "\nCalibrando: fique em silêncio..."
+            : ducking.NoiseFloorDb is { } floor
+                ? $"\n{(calibrated ? "Ruído calibrado" : "Ruído do ambiente (automático)")}: {Math.Max(floor, -99):0} dB · voz a partir de {Math.Max(ducking.ThresholdDb, -99):0} dB"
+                : "";
         _micLabel.Text = $"{ducking.MicrophoneName ?? "Microfone"}: {Math.Max(level, -99):0} dB" + (ducking.Speaking ? " · falando" : "") + room
             + (ducking.PluginConnected ? "" : "\nLimitador não conectado: toque algum som para o Equalizer APO carregá-lo.");
         _micLabel.ForeColor = !ducking.PluginConnected ? Color.Firebrick

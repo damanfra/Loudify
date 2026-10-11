@@ -25,14 +25,16 @@ internal sealed class MicDucking : IDisposable, IMMNotificationClient
     private long _nextOpenAttempt;
     private float[] _samples = Array.Empty<float>();
     private VoiceBandFilter? _filter;
+    private NoiseCalibration? _calibration;
     private bool _disposed;
 
     /// <param name="deviceId">A capture endpoint id, or null for the Windows default communications microphone.</param>
-    public MicDucking(string? deviceId, double marginDb, double duckDb)
+    public MicDucking(string? deviceId, double marginDb, double duckDb, double? calibratedNoiseDb)
     {
         DeviceId = deviceId;
         _ducker.MarginDb = marginDb;
         _ducker.DuckDb = duckDb;
+        _ducker.FixedNoiseFloorDb = calibratedNoiseDb;
         _restartTimer = new System.Threading.Timer(_ => Start(), null, Timeout.Infinite, Timeout.Infinite);
         _notifications.RegisterEndpointNotificationCallback(this);
         Start();
@@ -70,12 +72,36 @@ internal sealed class MicDucking : IDisposable, IMMNotificationClient
     /// since Equalizer APO started, or if the shared memory cannot be opened.</summary>
     public bool PluginConnected { get; private set; }
 
-    public void Configure(double marginDb, double duckDb)
+    public void Configure(double marginDb, double duckDb, double? calibratedNoiseDb)
     {
         lock (_lock)
         {
             _ducker.MarginDb = marginDb;
             _ducker.DuckDb = duckDb;
+            _ducker.FixedNoiseFloorDb = calibratedNoiseDb;
+        }
+    }
+
+    /// <summary>Progress of the running calibration (0..1), or null when none is running.</summary>
+    public double? CalibrationProgress => _calibration?.Progress;
+
+    /// <summary>Starts measuring the room noise; the user should stay quiet meanwhile.
+    /// The game is not lowered during the measurement.</summary>
+    public void StartCalibration()
+    {
+        lock (_lock)
+            _calibration = new NoiseCalibration();
+    }
+
+    /// <summary>Returns the measured noise once the calibration has finished (once), else null.</summary>
+    public double? TakeCalibrationResult()
+    {
+        lock (_lock)
+        {
+            if (_calibration is not { Done: true } done)
+                return null;
+            _calibration = null;
+            return done.Result();
         }
     }
 
@@ -218,7 +244,13 @@ internal sealed class MicDucking : IDisposable, IMMNotificationClient
             double level = VoiceDucker.LevelDb(mono);
             double blockMs = 1000.0 * frames / format.SampleRate;
             LevelDb = level;
-            WriteDuck(_ducker.Process(level, blockMs));
+            double duck = _ducker.Process(level, blockMs);
+            if (_calibration != null)
+            {
+                _calibration.Add(level, blockMs);
+                duck = 0;
+            }
+            WriteDuck(duck);
         }
     }
 

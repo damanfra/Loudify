@@ -133,6 +133,50 @@ public class VoiceDuckerTests
         Assert.Equal(8, Feed(d, -42, 100)); // a quieter syllable still counts
     }
 
+    [Fact]
+    public void CalibratedNoiseFloorStaysFixed()
+    {
+        var d = new VoiceDucker { MarginDb = 12, DuckDb = 8, FixedNoiseFloorDb = -60 };
+        Feed(d, -45, 20000); // a steady noise would be learned in automatic mode
+        Assert.Equal(-60, d.NoiseFloorDb);
+        Assert.Equal(-48, d.ThresholdDb);
+        Assert.True(d.Speaking);
+        Feed(d, -80, 2000);
+        Assert.Equal(-60, d.NoiseFloorDb);
+    }
+
+    [Fact]
+    public void CalibrationTakesAHighPercentileOfTheRoomNoise()
+    {
+        var c = new NoiseCalibration();
+        Assert.Null(c.Result());
+        for (int i = 0; i < 500; i++)
+            c.Add(i % 10 == 0 ? -50 : -70 + (i % 5), 10); // fan swinging -70..-66, rare bumps at -50
+        Assert.True(c.Done);
+        Assert.Equal(1, c.Progress);
+        Assert.Equal(-66, c.Result()); // 90th percentile: ignores the 10% bumps
+    }
+
+    [Fact]
+    public void CalibrationStopsAfterItsDuration()
+    {
+        var c = new NoiseCalibration();
+        for (int i = 0; i < 499; i++)
+            c.Add(-70, 10);
+        Assert.False(c.Done);
+        c.Add(-70, 10);
+        c.Add(0, 10); // ignored: already done
+        Assert.Equal(-70, c.Result());
+    }
+
+    [Fact]
+    public void CalibratedNoiseIsSanitized()
+    {
+        Assert.Null(new LoudifySettings { CalibratedNoiseDb = double.NaN }.Sanitized().CalibratedNoiseDb);
+        Assert.Equal(0, new LoudifySettings { CalibratedNoiseDb = 10 }.Sanitized().CalibratedNoiseDb);
+        Assert.Null(new LoudifySettings().Sanitized().CalibratedNoiseDb);
+    }
+
     [Theory]
     [InlineData(1000, -1, 1)]
     [InlineData(100, -100, -15)]
