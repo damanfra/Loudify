@@ -36,7 +36,7 @@ public class EqualizerApoConfigTests
     {
         string config = EqualizerApoConfig.BuildLoudifyConfig(new LoudifySettings { GainDb = 40 }, LimiterPath);
 
-        Assert.Contains(" Gain 1 ", config); // 36 dB, the top of the plugin's range
+        Assert.Contains(" Gain 0.666667 ", config); // 24 dB of the plugin's 36 dB range
     }
 
     [Fact]
