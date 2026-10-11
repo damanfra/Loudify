@@ -19,6 +19,11 @@ public sealed record LoudifySettings
 
     public bool PlaySoundOnToggle { get; init; } = true;
 
+    /// <summary>Look for a new release at startup and then at most once a day.</summary>
+    public bool CheckForUpdates { get; init; } = true;
+
+    public DateTimeOffset? LastUpdateCheck { get; init; }
+
     /// <summary>Returns a copy with every value inside its supported range.</summary>
     public LoudifySettings Sanitized() => this with
     {

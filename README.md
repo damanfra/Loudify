@@ -38,11 +38,13 @@ Na primeira vez, o Loudify adiciona `Include: loudify.txt` ao `config.txt` do Eq
 | Ajustar o ganho | Clique no ícone → controle deslizante (0 a +30 dB, aplicado na hora) |
 | Trocar o atalho | Janela de configurações → clique no campo *Atalho* e pressione a nova combinação |
 | Iniciar com o Windows | Janela de configurações |
+| Atualizar | Clique direito no ícone → *Verificar atualizações...*, ou botão na janela de configurações |
 
 - Um som curto confirma ao ligar (tom subindo) e desligar (tom descendo), útil em tela cheia. Pode ser desativado.
 - Ícone azul = ligado, cinza = desligado, vermelho = erro (passe o mouse para ver o motivo).
 - **Fechar o Loudify desliga o aumento.** Ao abrir de novo, o último estado é restaurado.
 - As configurações ficam em `%AppData%\Loudify\settings.json`.
+- O Loudify verifica sozinho se há versão nova ao iniciar (no máximo 1 vez por dia) e avisa com uma notificação. Ao aceitar, ele baixa a nova versão de *Releases*, confere o SHA-256, substitui o `Loudify.exe` e reabre. Dá para desligar a verificação automática nas configurações.
 
 > **Cuidado com a audição:** +30 dB é um aumento enorme (cerca de 32 vezes a amplitude). Comece com pouco ganho e aumente aos poucos. Acima de uns +20 dB o limitador passa a comprimir bastante: o som fica mais "cheio" e alto, mas perde dinâmica.
 
@@ -72,7 +74,7 @@ dotnet publish src/Loudify/Loudify.csproj -c Release -r win-x64 --self-contained
 GitHub Actions:
 
 - **Build** (`.github/workflows/build.yml`): faz o mesmo em todo push e pull request (exceto na `main`) e guarda o `Loudify.exe` como artefato. O botão *Run workflow* só gera o build, não uma release.
-- **Release** (`.github/workflows/release.yml`): roda em todo push na `main` e pelo botão *Actions → Release → Run workflow* (somente com a `main` selecionada). Compila, testa e publica o `Loudify.exe` em *Releases* com a tag `v<versão>`. Sem versão informada, usa `<Version do Loudify.csproj>.<nº do run>` (ex.: `v0.1.0.7`); para uma versão "limpa", digite-a no botão (ex.: `0.2.0`).
+- **Release** (`.github/workflows/release.yml`): roda em todo push na `main` e pelo botão *Actions → Release → Run workflow* (somente com a `main` selecionada). Compila, testa e publica o `Loudify.exe` em *Releases* com a tag `v<versão>`. Sem versão informada, usa `<Version do Loudify.csproj>.<nº do run>` (ex.: `v0.1.0.7`); para uma versão "limpa", digite-a no botão (ex.: `0.2.0`). Depois de uma versão manual, suba o `<Version>` do `Loudify.csproj` (ex.: `0.2.0` → `0.2.1`), senão as releases automáticas seguintes (`0.1.0.N`) ficam com número menor e o app não as oferece como atualização.
 
 ## Próxima etapa: sidetone (retorno do microfone)
 

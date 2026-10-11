@@ -12,6 +12,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private readonly ToolStripMenuItem _enabledItem;
     private readonly GlobalHotkey _hotkey = new();
     private readonly System.Windows.Forms.Timer _applyDebounce = new() { Interval = 150 };
+    // First tick shortly after startup, then hourly; a check only runs when one is due.
+    private readonly System.Windows.Forms.Timer _updateTimer = new() { Interval = 15_000 };
 
     private LoudifySettings _settings;
     private EqualizerApoInstallation? _apo;
@@ -19,8 +21,10 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private string? _error;
     private bool _hotkeyRegistered;
     private SettingsForm? _settingsForm;
+    private ReleaseInfo? _availableUpdate;
+    private bool _updateBusy;
 
-    public TrayApplicationContext()
+    public TrayApplicationContext(bool updated = false)
     {
         _settings = _store.Load();
 
@@ -28,6 +32,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         var menu = new ContextMenuStrip();
         menu.Items.Add(_enabledItem);
         menu.Items.Add("Configurações...", null, (_, _) => ShowSettings());
+        menu.Items.Add("Verificar atualizações...", null, (_, _) => CheckForUpdates(interactive: true));
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Sair", null, (_, _) => ExitThread());
 
@@ -36,6 +41,12 @@ internal sealed class TrayApplicationContext : ApplicationContext
         {
             if (e.Button == MouseButtons.Left)
                 ShowSettings();
+        };
+
+        _tray.BalloonTipClicked += (_, _) =>
+        {
+            if (_availableUpdate != null)
+                OfferUpdate(_availableUpdate);
         };
 
         _hotkey.Pressed += (_, _) => Toggle();
@@ -49,6 +60,17 @@ internal sealed class TrayApplicationContext : ApplicationContext
         Connect();
         Apply();
 
+        _updateTimer.Tick += (_, _) =>
+        {
+            _updateTimer.Interval = 60 * 60 * 1000;
+            if (_settings.CheckForUpdates && UpdateCheck.IsAutomaticCheckDue(_settings.LastUpdateCheck, DateTimeOffset.UtcNow))
+                CheckForUpdates(interactive: false);
+        };
+        _updateTimer.Start();
+
+        if (updated)
+            _tray.ShowBalloonTip(5000, "Loudify atualizado", $"Versão {UpdateCheck.Format(Updater.CurrentVersion)} instalada.", ToolTipIcon.Info);
+
         if (_apo == null)
             ShowMissingEqualizerApo();
     }
@@ -56,6 +78,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     public LoudifySettings Settings => _settings;
     public string? Error => _error;
     public bool HotkeyRegistered => _hotkeyRegistered;
+    public bool UpdateBusy => _updateBusy;
 
     public event EventHandler? StateChanged;
 
@@ -72,15 +95,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     {
         settings = settings.Sanitized();
         bool hotkeyChanged = settings.Hotkey != _settings.Hotkey;
-        _settings = settings;
-        try
-        {
-            _store.Save(settings);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            // Settings still apply for this session.
-        }
+        Save(settings);
 
         if (hotkeyChanged)
             RegisterHotkey();
@@ -95,6 +110,96 @@ internal sealed class TrayApplicationContext : ApplicationContext
             _applyDebounce.Stop();
             _applyDebounce.Start();
             RefreshUi();
+        }
+    }
+
+    /// <summary>Looks for a newer release. Interactive checks always report the result;
+    /// automatic ones stay silent unless an update is found.</summary>
+    public async void CheckForUpdates(bool interactive)
+    {
+        if (_updateBusy)
+            return;
+        _updateBusy = true;
+        RefreshUi();
+        ReleaseInfo? latest;
+        try
+        {
+            latest = await Updater.GetLatestReleaseAsync(CancellationToken.None);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or IOException)
+        {
+            _updateBusy = false;
+            RefreshUi();
+            if (interactive)
+                MessageBox.Show("Não foi possível verificar atualizações:\n" + ex.Message, "Loudify", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+        _updateBusy = false;
+        // Saved without Apply: rewriting loudify.txt would make Equalizer APO reload.
+        Save(_settings with { LastUpdateCheck = DateTimeOffset.UtcNow });
+        RefreshUi();
+
+        if (latest == null || !UpdateCheck.IsNewer(latest, Updater.CurrentVersion))
+        {
+            _availableUpdate = null;
+            if (interactive)
+                MessageBox.Show($"Você já está na versão mais recente ({UpdateCheck.Format(Updater.CurrentVersion)}).",
+                    "Loudify", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+
+        _availableUpdate = latest;
+        if (interactive)
+            OfferUpdate(latest);
+        else
+            _tray.ShowBalloonTip(10000, "Atualização do Loudify disponível",
+                $"Versão {UpdateCheck.Format(latest.Version)} disponível. Clique aqui para atualizar.", ToolTipIcon.Info);
+    }
+
+    private async void OfferUpdate(ReleaseInfo release)
+    {
+        if (_updateBusy)
+            return;
+        var answer = MessageBox.Show(
+            $"A versão {UpdateCheck.Format(release.Version)} do Loudify está disponível (você usa a {UpdateCheck.Format(Updater.CurrentVersion)}).\n\n" +
+            "Atualizar agora? O Loudify baixa a nova versão e reabre sozinho.",
+            "Loudify", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+        if (answer != DialogResult.Yes)
+            return;
+
+        _updateBusy = true;
+        RefreshUi();
+        try
+        {
+            string downloaded = await Updater.DownloadAsync(release, CancellationToken.None);
+            Updater.InstallAndRestart(downloaded);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or IOException
+            or UnauthorizedAccessException or InvalidDataException or InvalidOperationException
+            or System.ComponentModel.Win32Exception)
+        {
+            _updateBusy = false;
+            RefreshUi();
+            var open = MessageBox.Show(
+                "Não foi possível atualizar automaticamente:\n" + ex.Message + "\n\nAbrir a página da versão para baixar manualmente?",
+                "Loudify", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+            if (open == DialogResult.Yes)
+                OpenUrl(release.PageUrl);
+            return;
+        }
+        ExitThread();
+    }
+
+    private void Save(LoudifySettings settings)
+    {
+        _settings = settings.Sanitized();
+        try
+        {
+            _store.Save(_settings);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Settings still apply for this session.
         }
     }
 
@@ -125,6 +230,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _tray.Dispose();
         _hotkey.Dispose();
         _applyDebounce.Dispose();
+        _updateTimer.Dispose();
         _feedback.Dispose();
         base.ExitThreadCore();
     }
@@ -178,7 +284,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
     {
         _enabledItem.Checked = _settings.Enabled;
         _tray.Icon = _error != null ? _feedback.ErrorIcon : _settings.Enabled ? _feedback.OnIcon : _feedback.OffIcon;
-        string state = _error != null ? "erro"
+        string state = _updateBusy ? "atualizando..."
+            : _error != null ? "erro"
             : _settings.Enabled ? $"ligado (+{_settings.GainDb:0} dB)"
             : "desligado";
         // NotifyIcon.Text is limited to 63 characters.
@@ -203,6 +310,9 @@ internal sealed class TrayApplicationContext : ApplicationContext
             "Depois abra o Loudify de novo.\n\nAbrir a página de download agora?",
             "Loudify", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
         if (answer == DialogResult.Yes)
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(EqualizerApoInstallation.DownloadUrl) { UseShellExecute = true });
+            OpenUrl(EqualizerApoInstallation.DownloadUrl);
     }
+
+    private static void OpenUrl(string url) =>
+        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true });
 }

@@ -20,6 +20,8 @@ internal sealed class SettingsForm : Form
     private readonly Label _hotkeyStatus = new() { AutoSize = true, ForeColor = Color.Firebrick };
     private readonly CheckBox _sound = new() { Text = "Tocar um som ao ligar/desligar", AutoSize = true };
     private readonly CheckBox _startup = new() { Text = "Iniciar com o Windows", AutoSize = true };
+    private readonly CheckBox _autoUpdate = new() { Text = "Verificar atualizações automaticamente", AutoSize = true };
+    private readonly Button _checkUpdate = new() { Text = "Verificar atualizações", AutoSize = true };
     private readonly Label _status = new() { AutoSize = true, MaximumSize = new Size(340, 0) };
     private readonly Button _retry = new() { Text = "Verificar novamente", AutoSize = true };
     private bool _updating;
@@ -62,6 +64,18 @@ internal sealed class SettingsForm : Form
         layout.Controls.Add(_hotkeyStatus);
         layout.Controls.Add(_sound);
         layout.Controls.Add(_startup);
+        layout.Controls.Add(_autoUpdate);
+        var updateRow = new FlowLayoutPanel { AutoSize = true, Margin = new Padding(0) };
+        updateRow.Controls.Add(_checkUpdate);
+        updateRow.Controls.Add(new Label
+        {
+            Text = "Versão " + UpdateCheck.Format(Updater.CurrentVersion),
+            AutoSize = true,
+            Anchor = AnchorStyles.Left,
+            Margin = new Padding(6, 8, 0, 0),
+            ForeColor = SystemColors.GrayText,
+        });
+        layout.Controls.Add(updateRow);
         layout.Controls.Add(_status);
         layout.Controls.Add(_retry);
         Controls.Add(layout);
@@ -86,6 +100,12 @@ internal sealed class SettingsForm : Form
             if (!_updating)
                 StartupRegistration.SetEnabled(_startup.Checked);
         };
+        _autoUpdate.CheckedChanged += (_, _) =>
+        {
+            if (!_updating)
+                _app.UpdateSettings(_app.Settings with { CheckForUpdates = _autoUpdate.Checked }, immediate: true);
+        };
+        _checkUpdate.Click += (_, _) => _app.CheckForUpdates(interactive: true);
         _hotkey.KeyDown += OnHotkeyKeyDown;
         _retry.Click += (_, _) => _app.Reconnect();
 
@@ -111,6 +131,8 @@ internal sealed class SettingsForm : Form
             _hotkeyStatus.Text = _app.HotkeyRegistered ? "" : "Atalho indisponível: outro programa já o usa. Escolha outro.";
             _hotkeyStatus.Visible = !_app.HotkeyRegistered;
             _sound.Checked = s.PlaySoundOnToggle;
+            _autoUpdate.Checked = s.CheckForUpdates;
+            _checkUpdate.Enabled = !_app.UpdateBusy;
             _status.Text = _app.Error ?? "Equalizer APO conectado. O limitador evita distorção mesmo com ganho alto.";
             _status.ForeColor = _app.Error != null ? Color.Firebrick : SystemColors.GrayText;
             _retry.Visible = _app.Error != null;
