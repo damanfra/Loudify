@@ -40,6 +40,7 @@ internal sealed class SettingsForm : Form
         LargeChange = 2,
         Width = 300,
     };
+    private readonly ComboBox _mic = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 300 };
     private readonly Label _micLabel = new() { AutoSize = true, MaximumSize = new Size(320, 0) };
     private readonly ProgressBar _micMeter = new() { Minimum = 0, Maximum = 100, Width = 300, Height = 10 };
     private readonly Label _thresholdLabel = new() { AutoSize = true };
@@ -99,6 +100,8 @@ internal sealed class SettingsForm : Form
             MaximumSize = new Size(320, 0),
             ForeColor = SystemColors.GrayText,
         });
+        _duckPanel.Controls.Add(new Label { Text = "Microfone:", AutoSize = true, Margin = new Padding(3, 6, 3, 0) });
+        _duckPanel.Controls.Add(_mic);
         _duckPanel.Controls.Add(_duckLabel);
         _duckPanel.Controls.Add(_duckAmount);
         _duckPanel.Controls.Add(_micLabel);
@@ -155,6 +158,12 @@ internal sealed class SettingsForm : Form
             if (!_updating)
                 _app.UpdateSettings(_app.Settings with { DuckWhileTalking = _duck.Checked }, immediate: true);
         };
+        _mic.DropDown += (_, _) => FillMicrophones();
+        _mic.SelectedIndexChanged += (_, _) =>
+        {
+            if (!_updating && _mic.SelectedItem is MicItem item)
+                _app.UpdateSettings(_app.Settings with { MicrophoneId = item.Id }, immediate: true);
+        };
         _duckAmount.ValueChanged += (_, _) =>
         {
             if (!_updating)
@@ -209,6 +218,8 @@ internal sealed class SettingsForm : Form
             _sound.Checked = s.PlaySoundOnToggle;
             _duck.Checked = s.DuckWhileTalking;
             _duckPanel.Visible = s.DuckWhileTalking;
+            if (s.DuckWhileTalking && _mic.Items.Count == 0)
+                FillMicrophones();
             _duckAmount.Value = (int)Math.Round(s.DuckAmountDb);
             _duckLabel.Text = $"Abaixar o jogo em {s.DuckAmountDb:0} dB enquanto você fala";
             _threshold.Value = (int)Math.Round(s.VoiceMarginDb);
@@ -226,6 +237,37 @@ internal sealed class SettingsForm : Form
         finally
         {
             _updating = false;
+        }
+    }
+
+    private sealed record MicItem(string? Id, string Name)
+    {
+        public override string ToString() => Name;
+    }
+
+    /// <summary>Lists the default entry plus the connected microphones and selects the saved one.
+    /// Refreshed when the list opens, so a headset plugged in later shows up.</summary>
+    private void FillMicrophones()
+    {
+        bool wasUpdating = _updating;
+        _updating = true;
+        try
+        {
+            string? selected = _app.Settings.MicrophoneId;
+            var items = new List<MicItem> { new(null, "Padrão de comunicação do Windows") };
+            items.AddRange(MicDucking.ListMicrophones().Select(m => new MicItem(m.Id, m.Name)));
+            if (selected != null && items.All(i => i.Id != selected))
+                items.Add(new MicItem(selected, "Microfone escolhido (desconectado)"));
+
+            _mic.BeginUpdate();
+            _mic.Items.Clear();
+            _mic.Items.AddRange(items.ToArray());
+            _mic.SelectedIndex = items.FindIndex(i => i.Id == selected);
+            _mic.EndUpdate();
+        }
+        finally
+        {
+            _updating = wasUpdating;
         }
     }
 

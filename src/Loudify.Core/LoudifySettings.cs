@@ -33,6 +33,9 @@ public sealed record LoudifySettings
     /// <summary>How far above the room's noise (dB) the microphone must go to count as talking.</summary>
     public double VoiceMarginDb { get; init; } = DefaultVoiceMarginDb;
 
+    /// <summary>Microphone used to detect speech, or null for the Windows default communications device.</summary>
+    public string? MicrophoneId { get; init; }
+
     /// <summary>Returns a copy with every value inside its supported range.</summary>
     public LoudifySettings Sanitized() => this with
     {
@@ -41,6 +44,7 @@ public sealed record LoudifySettings
         ReleaseMs = Math.Clamp(double.IsFinite(ReleaseMs) ? ReleaseMs : 150.0, LimiterParameters.MinReleaseMs, LimiterParameters.MaxReleaseMs),
         DuckAmountDb = Math.Clamp(double.IsFinite(DuckAmountDb) ? DuckAmountDb : DefaultDuckAmountDb, MinDuckAmountDb, MaxDuckAmountDb),
         VoiceMarginDb = Math.Clamp(double.IsFinite(VoiceMarginDb) ? VoiceMarginDb : DefaultVoiceMarginDb, MinVoiceMarginDb, MaxVoiceMarginDb),
+        MicrophoneId = string.IsNullOrWhiteSpace(MicrophoneId) ? null : MicrophoneId,
         Hotkey = HotkeyDefinition.TryParse(Hotkey, out var hotkey) ? hotkey.ToString() : new LoudifySettings().Hotkey,
     };
 }

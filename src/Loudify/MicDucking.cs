@@ -1,6 +1,7 @@
 using System.IO.MemoryMappedFiles;
 using Loudify.Core;
 using NAudio.CoreAudioApi;
+using NAudio.CoreAudioApi.Interfaces;
 using NAudio.Wave;
 
 namespace Loudify;
@@ -10,9 +11,11 @@ namespace Loudify;
 /// and lowers the game while the user talks. The attenuation goes to the limiter
 /// plugin through shared memory, which it reads on every audio block.
 /// </summary>
-internal sealed class MicDucking : IDisposable
+internal sealed class MicDucking : IDisposable, IMMNotificationClient
 {
     private readonly object _lock = new();
+    // Kept only for device notifications (unplug, default device changed).
+    private readonly MMDeviceEnumerator _notifications = new();
     private readonly VoiceDucker _ducker = new();
     private readonly System.Threading.Timer _restartTimer;
     private MMDevice? _device;
@@ -24,12 +27,36 @@ internal sealed class MicDucking : IDisposable
     private VoiceBandFilter? _filter;
     private bool _disposed;
 
-    public MicDucking(double marginDb, double duckDb)
+    /// <param name="deviceId">A capture endpoint id, or null for the Windows default communications microphone.</param>
+    public MicDucking(string? deviceId, double marginDb, double duckDb)
     {
+        DeviceId = deviceId;
         _ducker.MarginDb = marginDb;
         _ducker.DuckDb = duckDb;
         _restartTimer = new System.Threading.Timer(_ => Start(), null, Timeout.Infinite, Timeout.Infinite);
+        _notifications.RegisterEndpointNotificationCallback(this);
         Start();
+    }
+
+    public string? DeviceId { get; }
+
+    /// <summary>Active microphones, for the settings window.</summary>
+    public static List<(string Id, string Name)> ListMicrophones()
+    {
+        var list = new List<(string, string)>();
+        try
+        {
+            using var enumerator = new MMDeviceEnumerator();
+            foreach (var device in enumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active))
+            {
+                using (device)
+                    list.Add((device.ID, device.FriendlyName));
+            }
+        }
+        catch (System.Runtime.InteropServices.COMException)
+        {
+        }
+        return list;
     }
 
     /// <summary>Last microphone level in dBFS (speech band only); read by the settings window meter.</summary>
@@ -61,6 +88,14 @@ internal sealed class MicDucking : IDisposable
             _restartTimer.Dispose();
             old = DetachCapture();
         }
+        try
+        {
+            _notifications.UnregisterEndpointNotificationCallback(this);
+        }
+        catch (System.Runtime.InteropServices.COMException)
+        {
+        }
+        _notifications.Dispose();
         ReleaseCapture(old);
         lock (_lock)
         {
@@ -89,7 +124,11 @@ internal sealed class MicDucking : IDisposable
                 // A fresh enumerator each time: restarts run on a thread-pool thread.
                 using var enumerator = new MMDeviceEnumerator();
                 // The communications device is the one Discord and games use for voice.
-                _device = enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Communications);
+                _device = DeviceId == null
+                    ? enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Communications)
+                    : enumerator.GetDevice(DeviceId);
+                if (_device.State != DeviceState.Active)
+                    throw new InvalidOperationException("o microfone escolhido está desconectado.");
                 MicrophoneName = _device.FriendlyName;
                 _capture = new WasapiCapture(_device, useEventSync: true, audioBufferMillisecondsLength: 20);
                 _filter = new VoiceBandFilter(_capture.WaveFormat.SampleRate);
@@ -120,10 +159,45 @@ internal sealed class MicDucking : IDisposable
         }
     }
 
-    private void ScheduleRestart()
+    private void ScheduleRestart(int delayMs = 5000)
     {
-        if (!_disposed)
-            _restartTimer.Change(5000, Timeout.Infinite);
+        try
+        {
+            if (!_disposed)
+                _restartTimer.Change(delayMs, Timeout.Infinite);
+        }
+        catch (ObjectDisposedException)
+        {
+        }
+    }
+
+    // Device notifications arrive on a COM thread; they only schedule a restart.
+
+    void IMMNotificationClient.OnDefaultDeviceChanged(DataFlow flow, Role role, string defaultDeviceId)
+    {
+        if (DeviceId == null && flow == DataFlow.Capture && role == Role.Communications)
+            ScheduleRestart(500);
+    }
+
+    void IMMNotificationClient.OnDeviceStateChanged(string deviceId, DeviceState newState)
+    {
+        // The chosen microphone came back, or the current one went away.
+        if (Error != null || string.Equals(deviceId, DeviceId, StringComparison.OrdinalIgnoreCase))
+            ScheduleRestart(500);
+    }
+
+    void IMMNotificationClient.OnDeviceAdded(string pwstrDeviceId)
+    {
+        if (Error != null)
+            ScheduleRestart(500);
+    }
+
+    void IMMNotificationClient.OnDeviceRemoved(string deviceId)
+    {
+    }
+
+    void IMMNotificationClient.OnPropertyValueChanged(string pwstrDeviceId, PropertyKey key)
+    {
     }
 
     private void OnData(object? sender, WaveInEventArgs e)
