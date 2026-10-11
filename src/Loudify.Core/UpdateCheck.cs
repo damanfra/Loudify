@@ -14,7 +14,6 @@ public static class UpdateCheck
     public const string LatestReleaseApiUrl = "https://api.github.com/repos/damanfra/Loudify/releases/latest";
     public const string ReleasesPageUrl = "https://github.com/damanfra/Loudify/releases";
     public const string AssetName = "Loudify.exe";
-    public static readonly TimeSpan AutomaticInterval = TimeSpan.FromDays(1);
 
     /// <summary>Returns the release described by the GitHub API response, or null when
     /// it is not a usable Loudify release (draft, prerelease, bad tag, no exe).</summary>
@@ -67,9 +66,6 @@ public static class UpdateCheck
         new(Math.Max(v.Major, 0), Math.Max(v.Minor, 0), Math.Max(v.Build, 0), Math.Max(v.Revision, 0));
 
     public static bool IsNewer(ReleaseInfo release, Version current) => release.Version > Normalize(current);
-
-    public static bool IsAutomaticCheckDue(DateTimeOffset? lastCheck, DateTimeOffset now) =>
-        lastCheck is not { } last || now - last >= AutomaticInterval || last > now;
 
     public static string Format(Version v)
     {

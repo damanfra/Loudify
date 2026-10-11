@@ -8,6 +8,13 @@ internal sealed class SettingsForm : Form
     private readonly TrayApplicationContext _app;
     private readonly CheckBox _enabled = new() { Text = "Aumento de volume ligado", AutoSize = true };
     private readonly Label _gainLabel = new() { AutoSize = true };
+    private readonly Label _loudWarning = new()
+    {
+        Text = $"Acima de +{LoudMode.StartGainDb:0} dB o som é comprimido e pode distorcer.",
+        AutoSize = true,
+        MaximumSize = new Size(340, 0),
+        ForeColor = Color.Firebrick,
+    };
     private readonly TrackBar _gain = new()
     {
         Minimum = (int)LoudifySettings.MinGainDb,
@@ -20,8 +27,8 @@ internal sealed class SettingsForm : Form
     private readonly Label _hotkeyStatus = new() { AutoSize = true, ForeColor = Color.Firebrick };
     private readonly CheckBox _sound = new() { Text = "Tocar um som ao ligar/desligar", AutoSize = true };
     private readonly CheckBox _startup = new() { Text = "Iniciar com o Windows", AutoSize = true };
-    private readonly CheckBox _autoUpdate = new() { Text = "Verificar atualizações automaticamente", AutoSize = true };
     private readonly Button _checkUpdate = new() { Text = "Verificar atualizações", AutoSize = true };
+    private readonly Label _version = new() { AutoSize = true, Anchor = AnchorStyles.Left, Margin = new Padding(6, 8, 0, 0) };
     private readonly Label _status = new() { AutoSize = true, MaximumSize = new Size(340, 0) };
     private readonly Button _retry = new() { Text = "Verificar novamente", AutoSize = true };
     private bool _updating;
@@ -29,7 +36,8 @@ internal sealed class SettingsForm : Form
     public SettingsForm(TrayApplicationContext app)
     {
         _app = app;
-        Text = "Loudify";
+        Text = "Loudify v" + UpdateCheck.Format(Updater.CurrentVersion);
+        Icon = AppIcon.Load();
         FormBorderStyle = FormBorderStyle.FixedSingle;
         MaximizeBox = false;
         MinimizeBox = false;
@@ -53,6 +61,7 @@ internal sealed class SettingsForm : Form
         layout.Controls.Add(_enabled);
         layout.Controls.Add(_gainLabel);
         layout.Controls.Add(_gain);
+        layout.Controls.Add(_loudWarning);
         layout.Controls.Add(hotkeyRow);
         layout.Controls.Add(new Label
         {
@@ -64,17 +73,9 @@ internal sealed class SettingsForm : Form
         layout.Controls.Add(_hotkeyStatus);
         layout.Controls.Add(_sound);
         layout.Controls.Add(_startup);
-        layout.Controls.Add(_autoUpdate);
         var updateRow = new FlowLayoutPanel { AutoSize = true, Margin = new Padding(0) };
         updateRow.Controls.Add(_checkUpdate);
-        updateRow.Controls.Add(new Label
-        {
-            Text = "Versão " + UpdateCheck.Format(Updater.CurrentVersion),
-            AutoSize = true,
-            Anchor = AnchorStyles.Left,
-            Margin = new Padding(6, 8, 0, 0),
-            ForeColor = SystemColors.GrayText,
-        });
+        updateRow.Controls.Add(_version);
         layout.Controls.Add(updateRow);
         layout.Controls.Add(_status);
         layout.Controls.Add(_retry);
@@ -100,12 +101,7 @@ internal sealed class SettingsForm : Form
             if (!_updating)
                 StartupRegistration.SetEnabled(_startup.Checked);
         };
-        _autoUpdate.CheckedChanged += (_, _) =>
-        {
-            if (!_updating)
-                _app.UpdateSettings(_app.Settings with { CheckForUpdates = _autoUpdate.Checked }, immediate: true);
-        };
-        _checkUpdate.Click += (_, _) => _app.CheckForUpdates(interactive: true);
+        _checkUpdate.Click += (_, _) => _app.UpdateOrCheck();
         _hotkey.KeyDown += OnHotkeyKeyDown;
         _retry.Click += (_, _) => _app.Reconnect();
 
@@ -128,11 +124,17 @@ internal sealed class SettingsForm : Form
             _gain.Value = (int)Math.Round(s.GainDb);
             double loud = LoudMode.Amount(s.GainDb);
             _gainLabel.Text = loud > 0 ? $"Ganho: +{s.GainDb:0} dB · modo mais alto {loud:0%}" : $"Ganho: +{s.GainDb:0} dB";
+            _gainLabel.ForeColor = loud > 0 ? Color.Firebrick : SystemColors.ControlText;
+            _loudWarning.Visible = loud > 0;
             _hotkey.Text = s.Hotkey;
             _hotkeyStatus.Text = _app.HotkeyRegistered ? "" : "Atalho indisponível: outro programa já o usa. Escolha outro.";
             _hotkeyStatus.Visible = !_app.HotkeyRegistered;
             _sound.Checked = s.PlaySoundOnToggle;
-            _autoUpdate.Checked = s.CheckForUpdates;
+            var update = _app.AvailableUpdate;
+            _checkUpdate.Text = _app.UpdateBusy ? "Aguarde..." : update != null ? "Atualizar" : "Verificar atualizações";
+            _version.Text = "Versão " + UpdateCheck.Format(Updater.CurrentVersion)
+                + (update != null ? $" · nova: {UpdateCheck.Format(update.Version)}" : "");
+            _version.ForeColor = update != null ? Color.SeaGreen : SystemColors.GrayText;
             _checkUpdate.Enabled = !_app.UpdateBusy;
             _status.Text = _app.Error ?? "Equalizer APO conectado. O limitador evita distorção mesmo com ganho alto.";
             _status.ForeColor = _app.Error != null ? Color.Firebrick : SystemColors.GrayText;

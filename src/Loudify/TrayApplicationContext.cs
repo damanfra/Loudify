@@ -12,8 +12,9 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private readonly ToolStripMenuItem _enabledItem;
     private readonly GlobalHotkey _hotkey = new();
     private readonly System.Windows.Forms.Timer _applyDebounce = new() { Interval = 150 };
-    // First tick shortly after startup, then hourly; a check only runs when one is due.
-    private readonly System.Windows.Forms.Timer _updateTimer = new() { Interval = 15_000 };
+    // One update check per start, a few seconds in so it never delays startup.
+    private readonly System.Windows.Forms.Timer _updateTimer = new() { Interval = 5_000 };
+    private readonly ToolStripMenuItem _updateItem;
 
     private LoudifySettings _settings;
     private EqualizerApoInstallation? _apo;
@@ -32,7 +33,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
         var menu = new ContextMenuStrip();
         menu.Items.Add(_enabledItem);
         menu.Items.Add("Configurações...", null, (_, _) => ShowSettings());
-        menu.Items.Add("Verificar atualizações...", null, (_, _) => CheckForUpdates(interactive: true));
+        _updateItem = new ToolStripMenuItem("Verificar atualizações...", null, (_, _) => UpdateOrCheck());
+        menu.Items.Add(_updateItem);
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Sair", null, (_, _) => ExitThread());
 
@@ -46,7 +48,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _tray.BalloonTipClicked += (_, _) =>
         {
             if (_availableUpdate != null)
-                OfferUpdate(_availableUpdate);
+                InstallUpdate(_availableUpdate);
         };
 
         _hotkey.Pressed += (_, _) => Toggle();
@@ -62,9 +64,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         _updateTimer.Tick += (_, _) =>
         {
-            _updateTimer.Interval = 60 * 60 * 1000;
-            if (_settings.CheckForUpdates && UpdateCheck.IsAutomaticCheckDue(_settings.LastUpdateCheck, DateTimeOffset.UtcNow))
-                CheckForUpdates(interactive: false);
+            _updateTimer.Stop();
+            CheckForUpdates(interactive: false);
         };
         _updateTimer.Start();
 
@@ -79,6 +80,16 @@ internal sealed class TrayApplicationContext : ApplicationContext
     public string? Error => _error;
     public bool HotkeyRegistered => _hotkeyRegistered;
     public bool UpdateBusy => _updateBusy;
+    public ReleaseInfo? AvailableUpdate => _availableUpdate;
+
+    /// <summary>Installs the update found earlier, or checks for one.</summary>
+    public void UpdateOrCheck()
+    {
+        if (_availableUpdate != null)
+            InstallUpdate(_availableUpdate);
+        else
+            CheckForUpdates(interactive: true);
+    }
 
     public event EventHandler? StateChanged;
 
@@ -135,13 +146,11 @@ internal sealed class TrayApplicationContext : ApplicationContext
             return;
         }
         _updateBusy = false;
-        // Saved without Apply: rewriting loudify.txt would make Equalizer APO reload.
-        Save(_settings with { LastUpdateCheck = DateTimeOffset.UtcNow });
-        RefreshUi();
 
         if (latest == null || !UpdateCheck.IsNewer(latest, Updater.CurrentVersion))
         {
             _availableUpdate = null;
+            RefreshUi();
             if (interactive)
                 MessageBox.Show($"Você já está na versão mais recente ({UpdateCheck.Format(Updater.CurrentVersion)}).",
                     "Loudify", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -149,24 +158,28 @@ internal sealed class TrayApplicationContext : ApplicationContext
         }
 
         _availableUpdate = latest;
+        RefreshUi();
         if (interactive)
-            OfferUpdate(latest);
+        {
+            var answer = MessageBox.Show(
+                $"A versão {UpdateCheck.Format(latest.Version)} do Loudify está disponível (você usa a {UpdateCheck.Format(Updater.CurrentVersion)}).\n\n" +
+                "Atualizar agora? O Loudify baixa a nova versão e reabre sozinho.",
+                "Loudify", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+            if (answer == DialogResult.Yes)
+                InstallUpdate(latest);
+        }
         else
+        {
             _tray.ShowBalloonTip(10000, "Atualização do Loudify disponível",
                 $"Versão {UpdateCheck.Format(latest.Version)} disponível. Clique aqui para atualizar.", ToolTipIcon.Info);
+        }
     }
 
-    private async void OfferUpdate(ReleaseInfo release)
+    /// <summary>Downloads and installs the release, then restarts into it.</summary>
+    private async void InstallUpdate(ReleaseInfo release)
     {
         if (_updateBusy)
             return;
-        var answer = MessageBox.Show(
-            $"A versão {UpdateCheck.Format(release.Version)} do Loudify está disponível (você usa a {UpdateCheck.Format(Updater.CurrentVersion)}).\n\n" +
-            "Atualizar agora? O Loudify baixa a nova versão e reabre sozinho.",
-            "Loudify", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
-        if (answer != DialogResult.Yes)
-            return;
-
         _updateBusy = true;
         RefreshUi();
         try
@@ -284,6 +297,10 @@ internal sealed class TrayApplicationContext : ApplicationContext
     {
         _enabledItem.Checked = _settings.Enabled;
         _tray.Icon = _error != null ? _feedback.ErrorIcon : _settings.Enabled ? _feedback.OnIcon : _feedback.OffIcon;
+        _updateItem.Text = _availableUpdate != null
+            ? $"Atualizar para a versão {UpdateCheck.Format(_availableUpdate.Version)}"
+            : "Verificar atualizações...";
+        _updateItem.Enabled = !_updateBusy;
         string state = _updateBusy ? "atualizando..."
             : _error != null ? "erro"
             : _settings.Enabled ? $"ligado (+{_settings.GainDb:0} dB)"

@@ -35,19 +35,19 @@ Na primeira vez, o Loudify adiciona `Include: loudify.txt` ao `config.txt` do Eq
 | Ação | Como |
 |---|---|
 | Ligar / desligar | **Ctrl+Alt+L** (funciona dentro do jogo), ou clique direito no ícone → *Ligado* |
-| Ajustar o ganho | Clique no ícone → controle deslizante (0 a +24 dB, aplicado na hora) |
+| Ajustar o ganho | Clique no ícone → controle deslizante (0 a +36 dB, aplicado na hora) |
 | Trocar o atalho | Janela de configurações → clique no campo *Atalho* e pressione a nova combinação |
 | Iniciar com o Windows | Janela de configurações |
-| Atualizar | Clique direito no ícone → *Verificar atualizações...*, ou botão na janela de configurações |
+| Atualizar | Janela de configurações → botão *Verificar atualizações* (vira *Atualizar* quando há versão nova), ou clique direito no ícone |
 
-- **Modo mais alto (acima de +18 dB):** a partir daí quase todo o som já encosta no teto digital, e mais ganho só comprime. Por isso, entre +18 e +24 dB o Loudify ativa aos poucos um realce de presença (+4 dB em 3 kHz, onde o ouvido é mais sensível), tira um pouco de grave (−3 dB abaixo de 120 Hz, que ocupa espaço até o teto) e sobe o teto do limitador de −1 para −0,1 dB. Em +21 dB o modo está em 50%; em +24 dB, em 100%. A janela de configurações mostra a porcentagem.
+- **Modo mais alto (acima de +18 dB):** a partir daí quase todo o som já encosta no teto digital, e mais ganho só comprime. Por isso, entre +18 e +24 dB o Loudify ativa aos poucos um realce de presença (+4 dB em 3 kHz, onde o ouvido é mais sensível), tira um pouco de grave (−3 dB abaixo de 120 Hz, que ocupa espaço até o teto) e sobe o teto do limitador de −1 para −0,1 dB. Em +21 dB o modo está em 50%; de +24 dB em diante, em 100%. Acima de +24 dB só o ganho continua subindo (mais compressão, mais risco de distorção). A partir de +18 dB a janela de configurações mostra o ganho em vermelho, com um aviso de que pode haver distorção.
 - Um som curto confirma ao ligar (tom subindo) e desligar (tom descendo), útil em tela cheia. Pode ser desativado.
 - Ícone azul = ligado, cinza = desligado, vermelho = erro (passe o mouse para ver o motivo).
 - **Fechar o Loudify desliga o aumento.** Ao abrir de novo, o último estado é restaurado.
 - As configurações ficam em `%AppData%\Loudify\settings.json`.
-- O Loudify verifica sozinho se há versão nova ao iniciar (no máximo 1 vez por dia) e avisa com uma notificação. Ao aceitar, ele baixa a nova versão de *Releases*, confere o SHA-256, substitui o `Loudify.exe` e reabre. Dá para desligar a verificação automática nas configurações.
+- O Loudify verifica se há versão nova toda vez que abre. Se houver, avisa com uma notificação e o botão *Verificar atualizações* vira *Atualizar*. Ao atualizar, ele baixa a nova versão de *Releases*, confere o SHA-256, substitui o `Loudify.exe` e reabre.
 
-> **Cuidado com a audição:** +24 dB é um aumento enorme (cerca de 16 vezes a amplitude). Comece com pouco ganho e aumente aos poucos.
+> **Cuidado com a audição:** +36 dB é um aumento enorme (cerca de 63 vezes a amplitude). Comece com pouco ganho e aumente aos poucos.
 
 ## Desinstalar
 

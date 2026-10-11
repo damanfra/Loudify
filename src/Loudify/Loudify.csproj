@@ -11,11 +11,13 @@
     <AssemblyName>Loudify</AssemblyName>
     <RootNamespace>Loudify</RootNamespace>
     <Version>0.1.0</Version>
+    <ApplicationIcon>Loudify.ico</ApplicationIcon>
     <!-- Built by native/LoudifyLimiter (CMake). Embedded so the app ships as a single exe. -->
     <LimiterDllPath Condition="'$(LimiterDllPath)' == ''">$(MSBuildThisFileDirectory)..\..\native\LoudifyLimiter\build\Release\LoudifyLimiter.dll</LimiterDllPath>
   </PropertyGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="Loudify.ico" LogicalName="Loudify.ico" />
     <EmbeddedResource Include="$(LimiterDllPath)" LogicalName="LoudifyLimiter.dll" Condition="Exists('$(LimiterDllPath)')" />
   </ItemGroup>
 

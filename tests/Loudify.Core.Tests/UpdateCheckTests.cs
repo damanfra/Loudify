@@ -73,17 +73,6 @@ public class UpdateCheckTests
         Assert.Equal(newer, UpdateCheck.IsNewer(release, Version.Parse(current)));
     }
 
-    [Fact]
-    public void AutomaticCheckRunsAtMostOnceADay()
-    {
-        var now = new DateTimeOffset(2026, 10, 11, 12, 0, 0, TimeSpan.Zero);
-
-        Assert.True(UpdateCheck.IsAutomaticCheckDue(null, now));
-        Assert.False(UpdateCheck.IsAutomaticCheckDue(now.AddHours(-23), now));
-        Assert.True(UpdateCheck.IsAutomaticCheckDue(now.AddHours(-24), now));
-        Assert.True(UpdateCheck.IsAutomaticCheckDue(now.AddDays(2), now)); // clock moved back
-    }
-
     [Theory]
     [InlineData("0.2.0", "0.2.0")]
     [InlineData("0.1.0.7", "0.1.0.7")]
