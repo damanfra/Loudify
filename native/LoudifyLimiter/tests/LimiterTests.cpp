@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 
+#include "../src/ControlChannel.h"
 #include "../src/Limiter.h"
 #include "../src/Parameters.h"
 #include "../src/VstPlugin.h"
@@ -202,6 +203,48 @@ static void testInPlace()
     CHECK(std::memcmp(buf.l.data(), expected.l.data(), buf.size() * sizeof(float)) == 0);
 }
 
+static void testDuckLowersTheGain()
+{
+    std::printf("ducking lowers the gain and recovers\n");
+    Limiter lim;
+    lim.setGainDb(12.0);
+    lim.setDuckDb(8.0);
+    Stereo in = sine(48000.0, 440.0, 0.05, 48000);
+    Stereo out = run(lim, in);
+    double gain = rms(out, 24000, 48000) / rms(in, 24000, 48000);
+    CHECK(std::fabs(20.0 * std::log10(gain) - 4.0) < 0.1);
+
+    // Changing the gain keeps the duck; removing the duck restores the gain.
+    lim.setGainDb(10.0);
+    CHECK(lim.duckDb() == 8.0);
+    lim.setDuckDb(0.0);
+    out = run(lim, in);
+    gain = rms(out, 24000, 48000) / rms(in, 24000, 48000);
+    CHECK(std::fabs(20.0 * std::log10(gain) - 10.0) < 0.1);
+
+    lim.setDuckDb(-5.0);
+    CHECK(lim.duckDb() == 0.0);
+}
+
+static void testControlBlock()
+{
+    std::printf("control block is ignored when stale or invalid\n");
+    ControlBlock b = { kControlMagic, kControlVersion, 8.0f, 0, 10000 };
+    CHECK(duckFromBlock(b, 10000) == 8.0);
+    CHECK(duckFromBlock(b, 10000 + kControlStaleMs) == 8.0);
+    CHECK(duckFromBlock(b, 10001 + kControlStaleMs) == 0.0); // app closed or hung
+    CHECK(duckFromBlock(b, 0) == 0.0);                         // heartbeat from the future
+    b.duckDb = 100.0f;
+    CHECK(duckFromBlock(b, 10000) == kMaxDuckDb);
+    b.duckDb = std::nanf("");
+    CHECK(duckFromBlock(b, 10000) == 0.0);
+    b.duckDb = 8.0f;
+    b.magic = 0;
+    CHECK(duckFromBlock(b, 10000) == 0.0);
+    ControlBlock zero = {};
+    CHECK(duckFromBlock(zero, 100) == 0.0);
+}
+
 static void testParameterMapping()
 {
     std::printf("parameter mappings round-trip\n");
@@ -285,6 +328,8 @@ int main()
     testReleaseRecovers();
     testNonFiniteInput();
     testInPlace();
+    testDuckLowersTheGain();
+    testControlBlock();
     testParameterMapping();
     testVstEntryPoint();
 

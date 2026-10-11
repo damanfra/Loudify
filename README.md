@@ -38,9 +38,11 @@ Na primeira vez, o Loudify adiciona `Include: loudify.txt` ao `config.txt` do Eq
 | Ajustar o ganho | Clique no ícone → controle deslizante (0 a +24 dB, aplicado na hora) |
 | Trocar o atalho | Janela de configurações → clique no campo *Atalho* e pressione a nova combinação |
 | Iniciar com o Windows | Janela de configurações |
+| Abaixar o jogo enquanto fala | Janela de configurações → *Abaixar o jogo enquanto eu falo* |
 | Atualizar | Janela de configurações → botão *Verificar atualizações* (vira *Atualizar* quando há versão nova), ou clique direito no ícone |
 
 - **Modo mais alto (acima de +18 dB):** a partir daí quase todo o som já encosta no teto digital, e mais ganho só comprime. Por isso, entre +18 e +24 dB o Loudify ativa aos poucos um realce de presença (+4 dB em 3 kHz, onde o ouvido é mais sensível), tira um pouco de grave (−3 dB abaixo de 120 Hz, que ocupa espaço até o teto) e sobe o teto do limitador de −1 para −0,1 dB. Em +21 dB o modo está em 50%; em +24 dB, em 100%. A partir de +18 dB a janela de configurações mostra o ganho em vermelho, com um aviso de que pode haver distorção.
+- **Abaixar o jogo enquanto eu falo:** para headsets com retorno de voz próprio (sidetone), como o Logitech G432. Com o jogo amplificado, o sidetone fica baixo demais em comparação. Com essa opção, o Loudify escuta o microfone de comunicação do Windows e, quando você fala, baixa o jogo alguns dB (padrão: 8 dB). Quando você para, volta ao normal em menos de 1 s. A sua voz continua vindo do headset, sem atraso. Ajuste a *sensibilidade* olhando o medidor: ele deve passar da marca só quando você fala. O microfone é aberto em modo compartilhado, então o Discord e os jogos continuam usando normalmente. O Windows mostra o ícone de microfone em uso enquanto a opção está ligada. Se o Loudify não conseguir abrir o microfone, confira em *Configurações → Privacidade → Microfone* se aplicativos da área de trabalho podem acessá-lo.
 - Um som curto confirma ao ligar (tom subindo) e desligar (tom descendo), útil em tela cheia. Pode ser desativado.
 - Ícone azul = ligado, cinza = desligado, vermelho = erro (passe o mouse para ver o motivo).
 - **Fechar o Loudify desliga o aumento.** Ao abrir de novo, o último estado é restaurado.

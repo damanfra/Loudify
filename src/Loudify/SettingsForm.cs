@@ -23,6 +23,35 @@ internal sealed class SettingsForm : Form
         LargeChange = 3,
         Width = 320,
     };
+    private readonly CheckBox _duck = new() { Text = "Abaixar o jogo enquanto eu falo", AutoSize = true, Margin = new Padding(3, 10, 3, 3) };
+    private readonly FlowLayoutPanel _duckPanel = new()
+    {
+        FlowDirection = FlowDirection.TopDown,
+        WrapContents = false,
+        AutoSize = true,
+        Margin = new Padding(18, 0, 0, 6),
+    };
+    private readonly Label _duckLabel = new() { AutoSize = true };
+    private readonly TrackBar _duckAmount = new()
+    {
+        Minimum = (int)LoudifySettings.MinDuckAmountDb,
+        Maximum = (int)LoudifySettings.MaxDuckAmountDb,
+        TickFrequency = 1,
+        LargeChange = 2,
+        Width = 300,
+    };
+    private readonly Label _micLabel = new() { AutoSize = true, MaximumSize = new Size(320, 0) };
+    private readonly ProgressBar _micMeter = new() { Minimum = 0, Maximum = 100, Width = 300, Height = 10 };
+    private readonly Label _thresholdLabel = new() { AutoSize = true };
+    private readonly TrackBar _threshold = new()
+    {
+        Minimum = (int)LoudifySettings.MinVoiceThresholdDb,
+        Maximum = (int)LoudifySettings.MaxVoiceThresholdDb,
+        TickFrequency = 5,
+        LargeChange = 5,
+        Width = 300,
+    };
+    private readonly System.Windows.Forms.Timer _meterTimer = new() { Interval = 80 };
     private readonly TextBox _hotkey = new() { ReadOnly = true, Width = 180, ShortcutsEnabled = false };
     private readonly Label _hotkeyStatus = new() { AutoSize = true, ForeColor = Color.Firebrick };
     private readonly CheckBox _sound = new() { Text = "Tocar um som ao ligar/desligar", AutoSize = true };
@@ -62,6 +91,28 @@ internal sealed class SettingsForm : Form
         layout.Controls.Add(_gainLabel);
         layout.Controls.Add(_gain);
         layout.Controls.Add(_loudWarning);
+        layout.Controls.Add(_duck);
+        _duckPanel.Controls.Add(new Label
+        {
+            Text = "Deixa o retorno de voz do próprio headset (sidetone) audível sobre o jogo amplificado.",
+            AutoSize = true,
+            MaximumSize = new Size(320, 0),
+            ForeColor = SystemColors.GrayText,
+        });
+        _duckPanel.Controls.Add(_duckLabel);
+        _duckPanel.Controls.Add(_duckAmount);
+        _duckPanel.Controls.Add(_micLabel);
+        _duckPanel.Controls.Add(_micMeter);
+        _duckPanel.Controls.Add(_thresholdLabel);
+        _duckPanel.Controls.Add(_threshold);
+        _duckPanel.Controls.Add(new Label
+        {
+            Text = "Ajuste para o medidor passar da sensibilidade só quando você fala (não com teclado ou respiração).",
+            AutoSize = true,
+            MaximumSize = new Size(320, 0),
+            ForeColor = SystemColors.GrayText,
+        });
+        layout.Controls.Add(_duckPanel);
         layout.Controls.Add(hotkeyRow);
         layout.Controls.Add(new Label
         {
@@ -99,6 +150,24 @@ internal sealed class SettingsForm : Form
             if (!_updating)
                 _app.UpdateSettings(_app.Settings with { GainDb = _gain.Value }, immediate: false);
         };
+        _duck.CheckedChanged += (_, _) =>
+        {
+            if (!_updating)
+                _app.UpdateSettings(_app.Settings with { DuckWhileTalking = _duck.Checked }, immediate: true);
+        };
+        _duckAmount.ValueChanged += (_, _) =>
+        {
+            if (!_updating)
+                _app.UpdateSettings(_app.Settings with { DuckAmountDb = _duckAmount.Value }, immediate: false);
+        };
+        _threshold.ValueChanged += (_, _) =>
+        {
+            if (!_updating)
+                _app.UpdateSettings(_app.Settings with { VoiceThresholdDb = _threshold.Value }, immediate: false);
+        };
+        _meterTimer.Tick += (_, _) => UpdateMeter();
+        _meterTimer.Start();
+        FormClosed += (_, _) => _meterTimer.Dispose();
         _sound.CheckedChanged += (_, _) =>
         {
             if (!_updating)
@@ -138,6 +207,12 @@ internal sealed class SettingsForm : Form
             _hotkeyStatus.Text = _app.HotkeyRegistered ? "" : "Atalho indisponível: outro programa já o usa. Escolha outro.";
             _hotkeyStatus.Visible = !_app.HotkeyRegistered;
             _sound.Checked = s.PlaySoundOnToggle;
+            _duck.Checked = s.DuckWhileTalking;
+            _duckPanel.Visible = s.DuckWhileTalking;
+            _duckAmount.Value = (int)Math.Round(s.DuckAmountDb);
+            _duckLabel.Text = $"Abaixar o jogo em {s.DuckAmountDb:0} dB enquanto você fala";
+            _threshold.Value = (int)Math.Round(s.VoiceThresholdDb);
+            _thresholdLabel.Text = $"Sensibilidade: voz acima de {s.VoiceThresholdDb:0} dB";
             var update = _app.AvailableUpdate;
             _checkUpdate.Text = _app.UpdateBusy ? "Aguarde..." : update != null ? "Atualizar" : "Verificar atualizações";
             _version.Text = "Versão " + UpdateCheck.Format(Updater.CurrentVersion)
@@ -152,6 +227,35 @@ internal sealed class SettingsForm : Form
         {
             _updating = false;
         }
+    }
+
+    /// <summary>Live microphone level, so the threshold can be set by just talking.</summary>
+    private void UpdateMeter()
+    {
+        if (!_duckPanel.Visible)
+            return;
+        var ducking = _app.Ducking;
+        if (ducking == null)
+        {
+            _micLabel.Text = _app.Settings.Enabled ? "Microfone: iniciando..." : "Ligue o aumento de volume para usar.";
+            _micLabel.ForeColor = SystemColors.GrayText;
+            _micMeter.Value = 0;
+            return;
+        }
+        if (ducking.Error != null)
+        {
+            _micLabel.Text = ducking.Error;
+            _micLabel.ForeColor = Color.Firebrick;
+            _micMeter.Value = 0;
+            return;
+        }
+        double level = ducking.LevelDb;
+        double range = -LoudifySettings.MinVoiceThresholdDb;
+        _micMeter.Value = (int)Math.Clamp((level + range) / range * 100, 0, 100);
+        _micLabel.Text = $"{ducking.MicrophoneName ?? "Microfone"}: {Math.Max(level, -99):0} dB" + (ducking.Speaking ? " · falando" : "")
+            + (ducking.PluginConnected ? "" : "\nLimitador não conectado: toque algum som para o Equalizer APO carregá-lo.");
+        _micLabel.ForeColor = !ducking.PluginConnected ? Color.Firebrick
+            : ducking.Speaking ? Color.SeaGreen : SystemColors.ControlText;
     }
 
     private void OnHotkeyKeyDown(object? sender, KeyEventArgs e)

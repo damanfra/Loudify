@@ -23,6 +23,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private bool _hotkeyRegistered;
     private SettingsForm? _settingsForm;
     private ReleaseInfo? _availableUpdate;
+    private MicDucking? _ducking;
     private bool _updateBusy;
 
     public TrayApplicationContext(bool updated = false)
@@ -81,6 +82,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
     public bool HotkeyRegistered => _hotkeyRegistered;
     public bool UpdateBusy => _updateBusy;
     public ReleaseInfo? AvailableUpdate => _availableUpdate;
+    /// <summary>Running only while the boost is on and "duck while talking" is enabled.</summary>
+    public MicDucking? Ducking => _ducking;
 
     /// <summary>Installs the update found earlier, or checks for one.</summary>
     public void UpdateOrCheck()
@@ -120,6 +123,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         {
             _applyDebounce.Stop();
             _applyDebounce.Start();
+            UpdateDucking();
             RefreshUi();
         }
     }
@@ -224,6 +228,9 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
     protected override void ExitThreadCore()
     {
+        _ducking?.Dispose();
+        _ducking = null;
+
         // Equalizer APO keeps applying its config without Loudify running; turn the
         // boost off so closing the app restores normal volume. The saved setting is
         // kept, so the next start restores the previous state.
@@ -285,7 +292,24 @@ internal sealed class TrayApplicationContext : ApplicationContext
                 _error = "Não foi possível gravar a configuração: " + ex.Message;
             }
         }
+        UpdateDucking();
         RefreshUi();
+    }
+
+    /// <summary>Starts, reconfigures or stops listening to the microphone. Ducking only
+    /// has an effect while the limiter is loaded, i.e. while the boost is on.</summary>
+    private void UpdateDucking()
+    {
+        bool active = _settings.Enabled && _settings.DuckWhileTalking && _apo != null && _limiterPath != null;
+        if (active && _ducking == null)
+            _ducking = new MicDucking(_settings.VoiceThresholdDb, _settings.DuckAmountDb);
+        else if (active)
+            _ducking!.Configure(_settings.VoiceThresholdDb, _settings.DuckAmountDb);
+        else if (_ducking != null)
+        {
+            _ducking.Dispose();
+            _ducking = null;
+        }
     }
 
     private void RegisterHotkey()

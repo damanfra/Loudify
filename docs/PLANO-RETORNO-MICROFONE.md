@@ -2,6 +2,20 @@
 
 Objetivo: ouvir a própria voz no fone enquanto fala (jogos, Discord), com atraso pequeno o bastante para soar natural.
 
+## Dois cenários
+
+1. **Headset com sidetone próprio (Logitech G432).** O sidetone existe, mas fica baixo perto do jogo amplificado pelo Loudify. O nível máximo dele é fixo no headset. O Lua do G HUB só controla teclado e mouse, não áudio. Um sidetone por software somado ao nativo daria voz dobrada, com eco. **Solução: abaixar o jogo enquanto você fala** (implementado, ver abaixo). A voz continua vindo do headset, sem atraso.
+2. **Headset sem sidetone (Baseus AeQur GH02, dongle 2,4 GHz).** Precisa de retorno por software: o resto deste documento. O rádio sem fio adiciona atraso nos dois sentidos, então a Fase 0 decide se é viável.
+
+## Cenário 1: abaixar o jogo enquanto fala (implementado)
+
+- O Loudify abre o microfone de comunicação do Windows em modo compartilhado (o Discord continua usando), mede o nível a cada ~10 ms e detecta a fala: acima da sensibilidade por 40 ms, segurando por 500 ms nas pausas entre palavras.
+- Enquanto você fala, o jogo baixa N dB (3–20, padrão 8). Depois volta ao normal em 400 ms.
+- O valor vai para o plugin por memória compartilhada (`Global\LoudifyControl`), lida a cada bloco de áudio. Não há recarga do Equalizer APO nem estalos, porque o plugin suaviza a mudança de ganho em 20 ms.
+- Se o Loudify fechar ou travar, o plugin para de abaixar o jogo em até 500 ms (heartbeat).
+
+O resto deste documento trata do **cenário 2**.
+
 **Regra de corte:** se o atraso ficar parecido com o do recurso do Windows *Escutar este dispositivo* (Propriedades do microfone → Escutar), o recurso é descartado. Não vale a pena ter um segundo jeito de fazer a mesma coisa.
 
 ## Por que o "Escutar" do Windows tem atraso

@@ -10,6 +10,7 @@
 #include <cstring>
 #include <new>
 
+#include "ControlChannel.h"
 #include "Limiter.h"
 #include "Parameters.h"
 
@@ -160,6 +161,7 @@ private:
 
     static void VSTCALL processReplacing(AEffect* e, float** inputs, float** outputs, int32_t frames)
     {
+        self(e)->updateDuck();
         self(e)->limiter_.process(inputs, outputs, Limiter::kMaxChannels, frames);
     }
 
@@ -167,6 +169,7 @@ private:
     static void VSTCALL processAccumulating(AEffect* e, float** inputs, float** outputs, int32_t frames)
     {
         constexpr int kChunk = 256;
+        self(e)->updateDuck();
         float temp[Limiter::kMaxChannels][kChunk];
         float* tempPtrs[Limiter::kMaxChannels] = { temp[0], temp[1] };
         for (int32_t offset = 0; offset < frames; offset += kChunk)
@@ -207,6 +210,14 @@ private:
         std::snprintf(static_cast<char*>(ptr), kMaxParamStrLen, "%.1f", shown);
     }
 
+    // Once per audio block: picks up the attenuation written by Loudify.exe.
+    void updateDuck()
+    {
+        double duck = control_.duckDb();
+        if (duck != limiter_.duckDb())
+            limiter_.setDuckDb(duck);
+    }
+
     void apply(int index)
     {
         double v = params_[index];
@@ -223,6 +234,7 @@ private:
     VstHostCallback host_;
     float params_[kNumParams] = {};
     Limiter limiter_;
+    ControlChannel control_;
 };
 
 } // namespace

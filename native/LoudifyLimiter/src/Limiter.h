@@ -34,7 +34,20 @@ public:
         reset();
     }
 
-    void setGainDb(double db) { targetGain_ = dbToLinear(db); }
+    void setGainDb(double db)
+    {
+        gainDb_ = db;
+        targetGain_ = dbToLinear(gainDb_ - duckDb_);
+    }
+
+    // Temporary attenuation on top of the gain (lowering the game while the user
+    // talks). Ramps with the same smoothing as gain changes, so it never clicks.
+    void setDuckDb(double db)
+    {
+        duckDb_ = std::max(db, 0.0);
+        targetGain_ = dbToLinear(gainDb_ - duckDb_);
+    }
+    double duckDb() const { return duckDb_; }
     void setCeilingDb(double db) { ceiling_ = dbToLinear(std::min(db, 0.0)); }
     void setReleaseMs(double ms)
     {
@@ -122,6 +135,8 @@ private:
 
     double sampleRate_ = 48000.0;
     int window_ = 1;
+    double gainDb_ = 0.0;
+    double duckDb_ = 0.0;
     double targetGain_ = 1.0;
     double currentGain_ = 1.0;
     double gainCoef_ = 1.0;
