@@ -37,9 +37,23 @@ public static partial class EqualizerApoConfig
         // Only process playback (post-mix); never touch microphones that also have
         // Equalizer APO installed.
         sb.Append("Stage: post-mix\r\n");
+
+        // Loud mode EQ goes before the limiter, which then keeps the result under the ceiling.
+        double loud = LoudMode.Amount(settings.GainDb);
+        if (loud > 0)
+        {
+            sb.Append("# Loud mode ").Append(LimiterParameters.Format(Math.Round(loud * 100))).Append("%\r\n");
+            sb.Append("Filter: ON LS Fc ").Append(LimiterParameters.Format(LoudMode.LowShelfHz))
+                .Append(" Hz Gain ").Append(LimiterParameters.Format(Math.Round(LoudMode.LowShelfGainDb * loud, 2))).Append(" dB\r\n");
+            sb.Append("Filter: ON PK Fc ").Append(LimiterParameters.Format(LoudMode.PresenceHz))
+                .Append(" Hz Gain ").Append(LimiterParameters.Format(Math.Round(LoudMode.PresenceGainDb * loud, 2)))
+                .Append(" dB Q ").Append(LimiterParameters.Format(LoudMode.PresenceQ)).Append("\r\n");
+        }
+
+        double ceiling = LoudMode.EffectiveCeilingDb(settings.CeilingDb, loud);
         sb.Append("VSTPlugin: Library \"").Append(limiterPath).Append('"')
             .Append(" Gain ").Append(LimiterParameters.Format(LimiterParameters.GainToNormalized(settings.GainDb)))
-            .Append(" Ceiling ").Append(LimiterParameters.Format(LimiterParameters.CeilingToNormalized(settings.CeilingDb)))
+            .Append(" Ceiling ").Append(LimiterParameters.Format(LimiterParameters.CeilingToNormalized(ceiling)))
             .Append(" Release ").Append(LimiterParameters.Format(LimiterParameters.ReleaseToNormalized(settings.ReleaseMs)))
             .Append("\r\n");
         return sb.ToString();

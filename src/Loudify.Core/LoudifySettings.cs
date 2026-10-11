@@ -3,7 +3,7 @@ namespace Loudify.Core;
 public sealed record LoudifySettings
 {
     public const double MinGainDb = 0.0;
-    public const double MaxGainDb = 30.0;
+    public const double MaxGainDb = 24.0;
 
     public bool Enabled { get; init; } = true;
 

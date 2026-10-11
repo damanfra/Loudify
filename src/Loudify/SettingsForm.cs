@@ -126,7 +126,8 @@ internal sealed class SettingsForm : Form
             var s = _app.Settings;
             _enabled.Checked = s.Enabled;
             _gain.Value = (int)Math.Round(s.GainDb);
-            _gainLabel.Text = $"Ganho: +{s.GainDb:0} dB";
+            double loud = LoudMode.Amount(s.GainDb);
+            _gainLabel.Text = loud > 0 ? $"Ganho: +{s.GainDb:0} dB · modo mais alto {loud:0%}" : $"Ganho: +{s.GainDb:0} dB";
             _hotkey.Text = s.Hotkey;
             _hotkeyStatus.Text = _app.HotkeyRegistered ? "" : "Atalho indisponível: outro programa já o usa. Escolha outro.";
             _hotkeyStatus.Visible = !_app.HotkeyRegistered;
