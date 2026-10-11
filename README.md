@@ -25,7 +25,7 @@ Jogos / Discord / navegador
    - No *Configurator* que abre no fim da instalação, marque o **G423** na aba *Playback devices*. Não marque o microfone.
    - Se depois o volume não mudar, abra o Configurator de novo (Menu Iniciar → Equalizer APO → Configurator), marque *Troubleshooting options* no headset e teste as opções de instalação alternativas.
    - Reinicie o Windows.
-2. **Baixe o `Loudify.exe`** em *Actions* → último build verde → artefato `Loudify-win-x64`, ou em *Releases* quando houver uma tag `v*`.
+2. **Baixe o `Loudify.exe`** em *Releases* (última versão), ou em *Actions* → último build verde → artefato `Loudify-win-x64`.
 3. **Execute o `Loudify.exe`.** Na primeira execução o Windows SmartScreen pode avisar que o app não é assinado: clique em *Mais informações* → *Executar assim mesmo*.
 
 Na primeira vez, o Loudify adiciona `Include: loudify.txt` ao `config.txt` do Equalizer APO. Se o `config.txt` for o padrão da instalação (que **reduz** o volume em 6 dB), ele é substituído; o original fica salvo em `config.txt.loudify-backup`.
@@ -69,7 +69,10 @@ dotnet test tests/Loudify.Core.Tests
 dotnet publish src/Loudify/Loudify.csproj -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -o publish
 ```
 
-O GitHub Actions (`.github/workflows/build.yml`) faz o mesmo em todo push. Uma tag `v*` publica o exe em *Releases*.
+GitHub Actions:
+
+- **Build** (`.github/workflows/build.yml`): faz o mesmo em todo push e pull request (exceto na `main`) e guarda o `Loudify.exe` como artefato. O botão *Run workflow* só gera o build, não uma release.
+- **Release** (`.github/workflows/release.yml`): roda em todo push na `main` e pelo botão *Actions → Release → Run workflow* (somente com a `main` selecionada). Compila, testa e publica o `Loudify.exe` em *Releases* com a tag `v<versão>`. Sem versão informada, usa `<Version do Loudify.csproj>.<nº do run>` (ex.: `v0.1.0.7`); para uma versão "limpa", digite-a no botão (ex.: `0.2.0`).
 
 ## Próxima etapa: sidetone (retorno do microfone)
 
