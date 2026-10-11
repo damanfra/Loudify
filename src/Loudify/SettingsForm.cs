@@ -45,10 +45,10 @@ internal sealed class SettingsForm : Form
     private readonly Label _thresholdLabel = new() { AutoSize = true };
     private readonly TrackBar _threshold = new()
     {
-        Minimum = (int)LoudifySettings.MinVoiceThresholdDb,
-        Maximum = (int)LoudifySettings.MaxVoiceThresholdDb,
-        TickFrequency = 5,
-        LargeChange = 5,
+        Minimum = (int)LoudifySettings.MinVoiceMarginDb,
+        Maximum = (int)LoudifySettings.MaxVoiceMarginDb,
+        TickFrequency = 2,
+        LargeChange = 2,
         Width = 300,
     };
     private readonly System.Windows.Forms.Timer _meterTimer = new() { Interval = 80 };
@@ -107,7 +107,7 @@ internal sealed class SettingsForm : Form
         _duckPanel.Controls.Add(_threshold);
         _duckPanel.Controls.Add(new Label
         {
-            Text = "Ajuste para o medidor passar da sensibilidade só quando você fala (não com teclado ou respiração).",
+            Text = "O ruído do ambiente (ventiladores, PC) é aprendido sozinho. Aumente a margem se o jogo baixar sem você falar; diminua se não baixar quando fala baixo.",
             AutoSize = true,
             MaximumSize = new Size(320, 0),
             ForeColor = SystemColors.GrayText,
@@ -163,7 +163,7 @@ internal sealed class SettingsForm : Form
         _threshold.ValueChanged += (_, _) =>
         {
             if (!_updating)
-                _app.UpdateSettings(_app.Settings with { VoiceThresholdDb = _threshold.Value }, immediate: false);
+                _app.UpdateSettings(_app.Settings with { VoiceMarginDb = _threshold.Value }, immediate: false);
         };
         _meterTimer.Tick += (_, _) => UpdateMeter();
         _meterTimer.Start();
@@ -211,8 +211,8 @@ internal sealed class SettingsForm : Form
             _duckPanel.Visible = s.DuckWhileTalking;
             _duckAmount.Value = (int)Math.Round(s.DuckAmountDb);
             _duckLabel.Text = $"Abaixar o jogo em {s.DuckAmountDb:0} dB enquanto você fala";
-            _threshold.Value = (int)Math.Round(s.VoiceThresholdDb);
-            _thresholdLabel.Text = $"Sensibilidade: voz acima de {s.VoiceThresholdDb:0} dB";
+            _threshold.Value = (int)Math.Round(s.VoiceMarginDb);
+            _thresholdLabel.Text = $"Sensibilidade: voz {s.VoiceMarginDb:0} dB acima do ruído do ambiente";
             var update = _app.AvailableUpdate;
             _checkUpdate.Text = _app.UpdateBusy ? "Aguarde..." : update != null ? "Atualizar" : "Verificar atualizações";
             _version.Text = "Versão " + UpdateCheck.Format(Updater.CurrentVersion)
@@ -250,9 +250,12 @@ internal sealed class SettingsForm : Form
             return;
         }
         double level = ducking.LevelDb;
-        double range = -LoudifySettings.MinVoiceThresholdDb;
+        const double range = 80; // meter shows -80..0 dB
         _micMeter.Value = (int)Math.Clamp((level + range) / range * 100, 0, 100);
-        _micLabel.Text = $"{ducking.MicrophoneName ?? "Microfone"}: {Math.Max(level, -99):0} dB" + (ducking.Speaking ? " · falando" : "")
+        string room = ducking.NoiseFloorDb is { } floor
+            ? $"\nRuído do ambiente: {Math.Max(floor, -99):0} dB · voz a partir de {Math.Max(ducking.ThresholdDb, -99):0} dB"
+            : "";
+        _micLabel.Text = $"{ducking.MicrophoneName ?? "Microfone"}: {Math.Max(level, -99):0} dB" + (ducking.Speaking ? " · falando" : "") + room
             + (ducking.PluginConnected ? "" : "\nLimitador não conectado: toque algum som para o Equalizer APO carregá-lo.");
         _micLabel.ForeColor = !ducking.PluginConnected ? Color.Firebrick
             : ducking.Speaking ? Color.SeaGreen : SystemColors.ControlText;

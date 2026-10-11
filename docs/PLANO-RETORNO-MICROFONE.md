@@ -9,7 +9,7 @@ Objetivo: ouvir a própria voz no fone enquanto fala (jogos, Discord), com atras
 
 ## Cenário 1: abaixar o jogo enquanto fala (implementado)
 
-- O Loudify abre o microfone de comunicação do Windows em modo compartilhado (o Discord continua usando), mede o nível a cada ~10 ms e detecta a fala: acima da sensibilidade por 40 ms, segurando por 500 ms nas pausas entre palavras.
+- O Loudify abre o microfone de comunicação do Windows em modo compartilhado (o Discord continua usando), mede o nível a cada ~10 ms e detecta a fala. Só a faixa da voz conta (filtro de 300–3.400 Hz, que tira ventilador e zumbido). O limiar é o ruído do ambiente, aprendido sozinho (desce rápido nas pausas e sobe 1,5 dB/s), mais uma margem (6–30 dB, padrão 12). Precisa ficar acima dele por 40 ms e segura 500 ms nas pausas entre palavras.
 - Enquanto você fala, o jogo baixa N dB (3–20, padrão 8). Depois volta ao normal em 400 ms.
 - O valor vai para o plugin por memória compartilhada (`Global\LoudifyControl`), lida a cada bloco de áudio. Não há recarga do Equalizer APO nem estalos, porque o plugin suaviza a mudança de ganho em 20 ms.
 - Se o Loudify fechar ou travar, o plugin para de abaixar o jogo em até 500 ms (heartbeat).

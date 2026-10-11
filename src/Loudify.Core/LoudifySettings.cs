@@ -7,9 +7,9 @@ public sealed record LoudifySettings
     public const double MinDuckAmountDb = 3.0;
     public const double MaxDuckAmountDb = 20.0;
     public const double DefaultDuckAmountDb = 8.0;
-    public const double MinVoiceThresholdDb = -70.0;
-    public const double MaxVoiceThresholdDb = -20.0;
-    public const double DefaultVoiceThresholdDb = -45.0;
+    public const double MinVoiceMarginDb = 6.0;
+    public const double MaxVoiceMarginDb = 30.0;
+    public const double DefaultVoiceMarginDb = 12.0;
 
     public bool Enabled { get; init; } = true;
 
@@ -30,8 +30,8 @@ public sealed record LoudifySettings
 
     public double DuckAmountDb { get; init; } = DefaultDuckAmountDb;
 
-    /// <summary>Microphone level (dBFS) above which the user counts as talking.</summary>
-    public double VoiceThresholdDb { get; init; } = DefaultVoiceThresholdDb;
+    /// <summary>How far above the room's noise (dB) the microphone must go to count as talking.</summary>
+    public double VoiceMarginDb { get; init; } = DefaultVoiceMarginDb;
 
     /// <summary>Returns a copy with every value inside its supported range.</summary>
     public LoudifySettings Sanitized() => this with
@@ -40,7 +40,7 @@ public sealed record LoudifySettings
         CeilingDb = Math.Clamp(double.IsFinite(CeilingDb) ? CeilingDb : -1.0, LimiterParameters.MinCeilingDb, 0.0),
         ReleaseMs = Math.Clamp(double.IsFinite(ReleaseMs) ? ReleaseMs : 150.0, LimiterParameters.MinReleaseMs, LimiterParameters.MaxReleaseMs),
         DuckAmountDb = Math.Clamp(double.IsFinite(DuckAmountDb) ? DuckAmountDb : DefaultDuckAmountDb, MinDuckAmountDb, MaxDuckAmountDb),
-        VoiceThresholdDb = Math.Clamp(double.IsFinite(VoiceThresholdDb) ? VoiceThresholdDb : DefaultVoiceThresholdDb, MinVoiceThresholdDb, MaxVoiceThresholdDb),
+        VoiceMarginDb = Math.Clamp(double.IsFinite(VoiceMarginDb) ? VoiceMarginDb : DefaultVoiceMarginDb, MinVoiceMarginDb, MaxVoiceMarginDb),
         Hotkey = HotkeyDefinition.TryParse(Hotkey, out var hotkey) ? hotkey.ToString() : new LoudifySettings().Hotkey,
     };
 }

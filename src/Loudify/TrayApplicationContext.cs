@@ -302,9 +302,9 @@ internal sealed class TrayApplicationContext : ApplicationContext
     {
         bool active = _settings.Enabled && _settings.DuckWhileTalking && _apo != null && _limiterPath != null;
         if (active && _ducking == null)
-            _ducking = new MicDucking(_settings.VoiceThresholdDb, _settings.DuckAmountDb);
+            _ducking = new MicDucking(_settings.VoiceMarginDb, _settings.DuckAmountDb);
         else if (active)
-            _ducking!.Configure(_settings.VoiceThresholdDb, _settings.DuckAmountDb);
+            _ducking!.Configure(_settings.VoiceMarginDb, _settings.DuckAmountDb);
         else if (_ducking != null)
         {
             _ducking.Dispose();

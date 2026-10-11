@@ -6,7 +6,13 @@ public class VoiceDuckerTests
 {
     private const double Block = 10;
 
-    private static VoiceDucker Create() => new() { ThresholdDb = -45, DuckDb = 8 };
+    /// <summary>A ducker that has learned a quiet room at -60 dB (threshold -48 dB).</summary>
+    private static VoiceDucker Create()
+    {
+        var d = new VoiceDucker { MarginDb = 12, DuckDb = 8 };
+        Feed(d, -60, 2000);
+        return d;
+    }
 
     private static double Feed(VoiceDucker d, double levelDb, double ms)
     {
@@ -67,6 +73,68 @@ public class VoiceDuckerTests
     }
 
     [Fact]
+    public void ThresholdIsTheNoiseFloorPlusTheMargin()
+    {
+        var d = Create();
+        Assert.Equal(-60, d.NoiseFloorDb!.Value, 1);
+        Assert.Equal(-48, d.ThresholdDb, 1);
+        Assert.False(d.Speaking);
+    }
+
+    [Fact]
+    public void ANewFanIsLearnedAndStopsDucking()
+    {
+        var d = Create();
+        Feed(d, -45, 1000); // louder than the old threshold: counts as talking at first
+        Assert.True(d.Speaking);
+
+        Feed(d, -45, 15000);
+        Assert.False(d.Speaking);
+        Assert.Equal(0, d.CurrentDuckDb);
+        Assert.Equal(-45, d.NoiseFloorDb!.Value, 1);
+        Assert.Equal(8, Feed(d, -20, 100)); // still reacts to the voice above the fan
+    }
+
+    [Fact]
+    public void TurningAFanOffIsLearnedQuickly()
+    {
+        var d = new VoiceDucker { MarginDb = 12, DuckDb = 8 };
+        Feed(d, -40, 2000);
+        Feed(d, -65, 1500);
+        Assert.InRange(d.NoiseFloorDb!.Value, -65.5, -64.5);
+    }
+
+    [Fact]
+    public void SpeechBarelyMovesTheNoiseFloor()
+    {
+        var d = Create();
+        for (int i = 0; i < 20; i++)
+        {
+            Feed(d, -30, 300); // words
+            Feed(d, -60, 200); // pauses
+        }
+        Assert.InRange(d.NoiseFloorDb!.Value, -61, -58);
+        Assert.True(d.Speaking);
+    }
+
+    [Theory]
+    [InlineData(1000, -1, 1)]
+    [InlineData(100, -100, -15)]
+    [InlineData(10000, -100, -15)]
+    public void VoiceBandFilterKeepsSpeechFrequencies(double hz, double minDb, double maxDb)
+    {
+        const int rate = 48000;
+        var filter = new VoiceBandFilter(rate);
+        float[] input = Enumerable.Range(0, rate).Select(i => (float)(0.5 * Math.Sin(2 * Math.PI * hz * i / rate))).ToArray();
+        float[] output = (float[])input.Clone();
+        filter.Process(output);
+
+        // Skip the first 100 ms while the filter settles.
+        double gainDb = VoiceDucker.LevelDb(output.AsSpan(4800)) - VoiceDucker.LevelDb(input.AsSpan(4800));
+        Assert.InRange(gainDb, minDb, maxDb);
+    }
+
+    [Fact]
     public void LevelOfFullScaleSquareWaveIsZeroDb()
     {
         float[] square = Enumerable.Range(0, 480).Select(i => i % 2 == 0 ? 1f : -1f).ToArray();
@@ -79,8 +147,8 @@ public class VoiceDuckerTests
     [Fact]
     public void DuckSettingsAreSanitized()
     {
-        var s = new LoudifySettings { DuckAmountDb = 99, VoiceThresholdDb = double.NaN }.Sanitized();
+        var s = new LoudifySettings { DuckAmountDb = 99, VoiceMarginDb = double.NaN }.Sanitized();
         Assert.Equal(LoudifySettings.MaxDuckAmountDb, s.DuckAmountDb);
-        Assert.Equal(LoudifySettings.DefaultVoiceThresholdDb, s.VoiceThresholdDb);
+        Assert.Equal(LoudifySettings.DefaultVoiceMarginDb, s.VoiceMarginDb);
     }
 }

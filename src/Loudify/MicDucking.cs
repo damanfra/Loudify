@@ -21,18 +21,21 @@ internal sealed class MicDucking : IDisposable
     private MemoryMappedViewAccessor? _view;
     private long _nextOpenAttempt;
     private float[] _samples = Array.Empty<float>();
+    private VoiceBandFilter? _filter;
     private bool _disposed;
 
-    public MicDucking(double thresholdDb, double duckDb)
+    public MicDucking(double marginDb, double duckDb)
     {
-        _ducker.ThresholdDb = thresholdDb;
+        _ducker.MarginDb = marginDb;
         _ducker.DuckDb = duckDb;
         _restartTimer = new System.Threading.Timer(_ => Start(), null, Timeout.Infinite, Timeout.Infinite);
         Start();
     }
 
-    /// <summary>Last microphone level in dBFS; read by the settings window meter.</summary>
+    /// <summary>Last microphone level in dBFS (speech band only); read by the settings window meter.</summary>
     public double LevelDb { get; private set; } = -120;
+    public double? NoiseFloorDb => _ducker.NoiseFloorDb;
+    public double ThresholdDb => _ducker.ThresholdDb;
     public bool Speaking => _ducker.Speaking;
     public string? MicrophoneName { get; private set; }
     public string? Error { get; private set; }
@@ -40,11 +43,11 @@ internal sealed class MicDucking : IDisposable
     /// since Equalizer APO started, or if the shared memory cannot be opened.</summary>
     public bool PluginConnected { get; private set; }
 
-    public void Configure(double thresholdDb, double duckDb)
+    public void Configure(double marginDb, double duckDb)
     {
         lock (_lock)
         {
-            _ducker.ThresholdDb = thresholdDb;
+            _ducker.MarginDb = marginDb;
             _ducker.DuckDb = duckDb;
         }
     }
@@ -89,6 +92,7 @@ internal sealed class MicDucking : IDisposable
                 _device = enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Communications);
                 MicrophoneName = _device.FriendlyName;
                 _capture = new WasapiCapture(_device, useEventSync: true, audioBufferMillisecondsLength: 20);
+                _filter = new VoiceBandFilter(_capture.WaveFormat.SampleRate);
                 _capture.DataAvailable += OnData;
                 _capture.RecordingStopped += OnStopped;
                 _capture.StartRecording();
@@ -130,11 +134,15 @@ internal sealed class MicDucking : IDisposable
                 return;
             var format = _capture.WaveFormat;
             int count = ToFloat(e.Buffer, e.BytesRecorded, format.BitsPerSample);
-            if (count == 0)
+            int frames = MixToMono(count, format.Channels);
+            if (frames == 0 || _filter == null)
                 return;
 
-            double level = VoiceDucker.LevelDb(_samples.AsSpan(0, count));
-            double blockMs = 1000.0 * count / format.Channels / format.SampleRate;
+            // Detect on the speech band only, so fans and hum do not count as talking.
+            var mono = _samples.AsSpan(0, frames);
+            _filter.Process(mono);
+            double level = VoiceDucker.LevelDb(mono);
+            double blockMs = 1000.0 * frames / format.SampleRate;
             LevelDb = level;
             WriteDuck(_ducker.Process(level, blockMs));
         }
@@ -153,6 +161,22 @@ internal sealed class MicDucking : IDisposable
             for (int i = 0; i < count; i++)
                 _samples[i] = BitConverter.ToInt16(buffer, i * 2) / 32768f;
         return count;
+    }
+
+    /// <summary>Averages interleaved channels in place into the start of _samples.</summary>
+    private int MixToMono(int count, int channels)
+    {
+        if (channels <= 1)
+            return count;
+        int frames = count / channels;
+        for (int f = 0; f < frames; f++)
+        {
+            float sum = 0;
+            for (int c = 0; c < channels; c++)
+                sum += _samples[f * channels + c];
+            _samples[f] = sum / channels;
+        }
+        return frames;
     }
 
     private void WriteDuck(double duckDb)
